@@ -30,9 +30,9 @@ import type { StandingEntry } from '../services/api/standingsService';
 
 export default function Standings() {
   const { currentLeague, isLoading: leagueLoading } = useLeague();
-  const { selectedSeason, setSelectedSeason, getSeasonLabel, loading: seasonLoading } = useSeason();
+  const { selectedSeason, setSelectedSeason, getSeasonLabel, loading: seasonLoading } = useSeason(2023);
 
-  // Vraie API au lieu du mock data
+  // Appel API avec la saison sélectionnée
   const { data: standingsData, loading, error, refetch } = useApi(
     async () => {
       if (!currentLeague || !selectedSeason) throw new Error('Ligue ou saison manquante');
@@ -44,6 +44,13 @@ export default function Standings() {
 
   const standings = standingsData?.standings || [];
   const leagueInfo = standingsData?.league;
+
+  // Debug temporaire
+  console.log('🔍 Debug Standings:', {
+    standingsData,
+    standings: standings?.length,
+    firstEntry: standings?.[0]
+  });
 
   // Fonction pour obtenir l'icône de tendance
   const getTrendIcon = (status: string) => {
@@ -58,7 +65,9 @@ export default function Standings() {
   };
 
   // Fonction pour obtenir la couleur de qualification
-  const getQualificationColor = (description: string) => {
+  const getQualificationColor = (description: string | null | undefined) => {
+    if (!description) return 'transparent';
+    
     if (description.includes('Champions League')) return '#00387b';
     if (description.includes('Europa League')) return '#ff6b00';
     if (description.includes('Relegation')) return '#d32f2f';
@@ -66,7 +75,9 @@ export default function Standings() {
   };
 
   // Fonction pour parser la forme récente
-  const parseForm = (form: string) => {
+  const parseForm = (form: string | null | undefined) => {
+    if (!form) return null;
+    
     return form.split('').map((result, index) => {
       let color = 'default' as const;
       let label = result;
@@ -104,7 +115,7 @@ export default function Standings() {
     });
   };
 
-  if (leagueLoading || seasonLoading || !currentLeague) {
+  if (leagueLoading || !currentLeague) {
     return <LoadingSpinner message="Chargement du championnat..." />;
   }
 
@@ -206,7 +217,7 @@ export default function Standings() {
             <Table>
               <TableHead>
                 <TableRow sx={{ bgcolor: 'grey.50' }}>
-                  <TableCell sx={{ fontWeight: 700, width: 60 }}>Pos</TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: 60 }}>Position</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Équipe</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>MJ</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>V</TableCell>
@@ -219,7 +230,7 @@ export default function Standings() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {standings?.map((entry) => (
+                {standings && standings.length > 0 ? standings.map((entry) => (
                   <TableRow 
                     key={entry.team.id}
                     sx={{ 
@@ -312,11 +323,23 @@ export default function Standings() {
                     {/* Forme récente */}
                     <TableCell align="center">
                       <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                        {parseForm(entry.form)}
+                        {parseForm(entry.form) || (
+                          <Typography variant="caption" color="text.secondary">
+                            -
+                          </Typography>
+                        )}
                       </Box>
                     </TableCell>
                   </TableRow>
-                ))}
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={10} align="center">
+                      <Typography variant="body1" color="text.secondary" sx={{ py: 4 }}>
+                        Aucune donnée de classement disponible
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </TableContainer>

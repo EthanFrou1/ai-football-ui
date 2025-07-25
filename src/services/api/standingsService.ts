@@ -89,7 +89,7 @@ class StandingsService {
   /**
    * Récupérer le classement complet d'une ligue
    */
-  async getStandings(leagueId: number, season: number = 2024): Promise<StandingsResponse> {
+  async getStandings(leagueId: number, season: number = 2023): Promise<StandingsResponse> {
     try {
       const response = await apiClient.get<StandingsResponse>(`/standings/${leagueId}`, { season });
       return response;
@@ -102,7 +102,7 @@ class StandingsService {
   /**
    * Récupérer un résumé du classement
    */
-  async getStandingsSummary(leagueId: number, season: number = 2024): Promise<StandingsSummary> {
+  async getStandingsSummary(leagueId: number, season: number = 2023): Promise<StandingsSummary> {
     try {
       const response = await apiClient.get<StandingsSummary>(`/standings/${leagueId}/summary`, { season });
       return response;
