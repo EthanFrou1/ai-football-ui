@@ -1,63 +1,148 @@
-import { useState } from "react";
-import { Box, Typography, Card, CardContent, Divider, Tabs, Tab, Avatar, Grid } from "@mui/material";
-import { Link } from "react-router-dom";
+// src/pages/Matches.tsx
+import { 
+  Box, 
+  Typography, 
+  Alert, 
+  CircularProgress,
+  Tabs,
+  Tab,
+  Divider,
+  Stack
+} from "@mui/material";
+import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMatches } from "../hooks/useMatches";
+import MatchCard from "../components/Matches/MatchCard";
+import MatchesHeader from "../components/Matches/MatchesHeader";
+import type { MatchData } from "../services/api/matchesService";
 
-const allMatches = [
-  {
-    id: 1,
-    homeTeam: { id: 85, name: "Paris Saint-Germain", score: 2 },
-    awayTeam: { id: 80, name: "Olympique Lyonnais", score: 1 },
-    date: "2025-07-27",
-    time: "21:00",
-    status: "Terminé"
-  },
-  {
-    id: 2,
-    homeTeam: { id: 541, name: "Real Madrid", score: 3 },
-    awayTeam: { id: 529, name: "FC Barcelona", score: 1 },
-    date: "2025-07-28",
-    time: "20:00",
-    status: "Terminé"
-  },
-  {
-    id: 3,
-    homeTeam: { id: 50, name: "Manchester City", score: null },
-    awayTeam: { id: 42, name: "Arsenal", score: null },
-    date: "2025-07-30",
-    time: "17:30",
-    status: "À venir"
-  },
-  {
-    id: 4,
-    homeTeam: { id: 85, name: "Paris Saint-Germain", score: null },
-    awayTeam: { id: 84, name: "OGC Nice", score: null },
-    date: "2025-08-02",
-    time: "21:00",
-    status: "À venir"
-  }
-];
+// Interface pour les onglets
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`matches-tabpanel-${index}`}
+      aria-labelledby={`matches-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box>{children}</Box>}
+    </div>
+  );
+}
 
 export default function Matches() {
+  const navigate = useNavigate();
+  
+  // Configuration - à adapter selon le context League
+  const leagueId = 39; // Premier League
+  const season = 2023;
+  
+  // Hook principal pour les matchs
+  const {
+    matches,
+    recentMatches,
+    upcomingMatches,
+    allMatches,
+    loading,
+    error,
+    filters,
+    setFilters,
+    clearFilters,
+    sortBy,
+    setSortBy,
+    stats,
+    refetch
+  } = useMatches(leagueId, season);
+
+  // État pour les onglets
   const [currentTab, setCurrentTab] = useState(0);
 
-  const handleTabChange = (_: any, newValue: number) => {
+  // Gestion du changement d'onglet
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setCurrentTab(newValue);
-  };
-
-  const getFilteredMatches = () => {
-    switch (currentTab) {
-      case 0: // Tous
-        return allMatches;
-      case 1: // Terminés
-        return allMatches.filter(match => match.status === "Terminé");
-      case 2: // À venir
-        return allMatches.filter(match => match.status === "À venir");
-      default:
-        return allMatches;
+    // Réinitialiser certains filtres lors du changement d'onglet
+    if (newValue !== 0) { // Si pas "Tous"
+      setFilters({ ...filters, status: undefined });
     }
   };
 
-  const filteredMatches = getFilteredMatches();
+  // Extraction des équipes uniques pour le filtre
+  const availableTeams = useMemo(() => {
+    const teamsMap = new Map();
+    
+    allMatches.forEach(match => {
+      if (!teamsMap.has(match.homeTeam.id)) {
+        teamsMap.set(match.homeTeam.id, {
+          id: match.homeTeam.id,
+          name: match.homeTeam.name,
+          logo: match.homeTeam.logo
+        });
+      }
+      if (!teamsMap.has(match.awayTeam.id)) {
+        teamsMap.set(match.awayTeam.id, {
+          id: match.awayTeam.id,
+          name: match.awayTeam.name,
+          logo: match.awayTeam.logo
+        });
+      }
+    });
+
+    return Array.from(teamsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [allMatches]);
+
+  // Gestion du clic sur un match
+  const handleMatchClick = (match: MatchData) => {
+    navigate(`/match/${match.id}`);
+  };
+
+  // Données selon l'onglet sélectionné
+  const getMatchesForTab = () => {
+    switch (currentTab) {
+      case 0: return matches; // Tous (avec filtres appliqués)
+      case 1: return upcomingMatches; // À venir
+      case 2: return recentMatches; // Récents
+      default: return matches;
+    }
+  };
+
+  const currentMatches = getMatchesForTab();
+
+  // Gestion de l'état de chargement global
+  if (loading && allMatches.length === 0) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Matchs
+        </Typography>
+        <Box display="flex" justifyContent="center" py={8}>
+          <CircularProgress size={60} />
+        </Box>
+      </Box>
+    );
+  }
+
+  // Gestion d'erreur
+  if (error) {
+    return (
+      <Box sx={{ p: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Matchs
+        </Typography>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Erreur lors du chargement des matchs : {error}
+        </Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 4 }}>
@@ -65,82 +150,165 @@ export default function Matches() {
         Matchs
       </Typography>
 
-      {/* Onglets de filtrage */}
-      <Tabs value={currentTab} onChange={handleTabChange} sx={{ mb: 3 }}>
-        <Tab label={`Tous (${allMatches.length})`} />
-        <Tab label={`Terminés (${allMatches.filter(m => m.status === "Terminé").length})`} />
-        <Tab label={`À venir (${allMatches.filter(m => m.status === "À venir").length})`} />
-      </Tabs>
+      {/* Onglets */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs value={currentTab} onChange={handleTabChange} aria-label="Onglets matchs">
+          <Tab 
+            label={`Tous (${stats.total})`} 
+            id="matches-tab-0"
+            aria-controls="matches-tabpanel-0"
+          />
+          <Tab 
+            label={`À venir (${stats.upcoming})`} 
+            id="matches-tab-1"
+            aria-controls="matches-tabpanel-1"
+          />
+          <Tab 
+            label={`Récents (${stats.recent})`} 
+            id="matches-tab-2"
+            aria-controls="matches-tabpanel-2"
+          />
+        </Tabs>
+      </Box>
 
-      <Divider sx={{ mb: 3 }} />
+      {/* Panneau "Tous" avec filtres complets */}
+      <TabPanel value={currentTab} index={0}>
+        <MatchesHeader
+          filters={filters}
+          onFiltersChange={setFilters}
+          onClearFilters={clearFilters}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          availableTeams={availableTeams}
+          totalMatches={allMatches.length}
+          filteredMatches={matches.length}
+          onRefresh={refetch}
+          loading={loading}
+        />
 
-      {/* Liste des matchs */}
-      {filteredMatches.map((match) => (
-        <Card key={match.id} sx={{ mb: 2 }}>
-          <Link to={`/match/${match.id}`} style={{ textDecoration: "none" }}>
-            <CardContent>
-              <Grid container alignItems="center" spacing={2}>
-                {/* Équipe domicile */}
-                <Grid item xs={4} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-                  <Typography variant="h6" sx={{ mr: 1 }}>
-                    {match.homeTeam.name}
-                  </Typography>
-                  <Avatar
-                    src={`https://media.api-sports.io/football/teams/${match.homeTeam.id}.png`}
-                    alt={match.homeTeam.name}
-                    sx={{ width: 40, height: 40 }}
-                  />
-                </Grid>
-                
-                {/* Score ou VS */}
-                <Grid item xs={4} sx={{ textAlign: "center" }}>
-                  {match.status === "Terminé" ? (
-                    <Typography variant="h4" sx={{ fontWeight: "bold" }}>
-                      {match.homeTeam.score} - {match.awayTeam.score}
-                    </Typography>
-                  ) : (
-                    <Typography variant="h6" sx={{ fontWeight: "bold" }}>
-                      VS
-                    </Typography>
-                  )}
-                  <Typography variant="body2" color="text.secondary">
-                    {match.date} - {match.time}
-                  </Typography>
-                  <Typography 
-                    variant="caption" 
-                    sx={{ 
-                      px: 1, 
-                      py: 0.5, 
-                      borderRadius: 1, 
-                      backgroundColor: match.status === "Terminé" ? "success.light" : "primary.light",
-                      color: "white"
-                    }}
-                  >
-                    {match.status}
-                  </Typography>
-                </Grid>
-                
-                {/* Équipe extérieure */}
-                <Grid item xs={4} sx={{ display: "flex", alignItems: "center" }}>
-                  <Avatar
-                    src={`https://media.api-sports.io/football/teams/${match.awayTeam.id}.png`}
-                    alt={match.awayTeam.name}
-                    sx={{ width: 40, height: 40, mr: 1 }}
-                  />
-                  <Typography variant="h6">
-                    {match.awayTeam.name}
-                  </Typography>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Link>
-        </Card>
-      ))}
+        {matches.length === 0 ? (
+          <Alert severity="info">
+            Aucun match ne correspond aux filtres sélectionnés.
+          </Alert>
+        ) : (
+          <Box>
+            {matches.map((match) => (
+              <MatchCard
+                key={match.id}
+                match={match}
+                showLeagueInfo={true}
+                showVenue={true}
+                showDetailsButton={true}
+                onClick={handleMatchClick}
+              />
+            ))}
+          </Box>
+        )}
+      </TabPanel>
 
-      {filteredMatches.length === 0 && (
-        <Typography variant="body1" color="text.secondary" sx={{ textAlign: "center", mt: 4 }}>
-          Aucun match trouvé pour cette catégorie
-        </Typography>
+      {/* Panneau "À venir" */}
+      <TabPanel value={currentTab} index={1}>
+        <Box mb={2}>
+          <Typography variant="h6" gutterBottom>
+            Prochains matchs
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {upcomingMatches.length} match{upcomingMatches.length > 1 ? 's' : ''} programmé{upcomingMatches.length > 1 ? 's' : ''}
+          </Typography>
+        </Box>
+
+        {upcomingMatches.length === 0 ? (
+          <Alert severity="info">
+            Aucun match à venir pour le moment.
+          </Alert>
+        ) : (
+          <Box>
+            {upcomingMatches.map((match) => (
+              <MatchCard
+                key={match.id}
+                match={match}
+                showLeagueInfo={true}
+                showVenue={true}
+                showDetailsButton={true}
+                onClick={handleMatchClick}
+              />
+            ))}
+          </Box>
+        )}
+      </TabPanel>
+
+      {/* Panneau "Récents" */}
+      <TabPanel value={currentTab} index={2}>
+        <Box mb={2}>
+          <Typography variant="h6" gutterBottom>
+            Derniers résultats
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {recentMatches.length} match{recentMatches.length > 1 ? 's' : ''} récent{recentMatches.length > 1 ? 's' : ''}
+          </Typography>
+        </Box>
+
+        {recentMatches.length === 0 ? (
+          <Alert severity="info">
+            Aucun match récent disponible.
+          </Alert>
+        ) : (
+          <Box>
+            {recentMatches.map((match) => (
+              <MatchCard
+                key={match.id}
+                match={match}
+                showLeagueInfo={true}
+                showVenue={true}
+                showDetailsButton={true}
+                onClick={handleMatchClick}
+              />
+            ))}
+          </Box>
+        )}
+      </TabPanel>
+
+      {/* Statistiques en bas de page */}
+      {allMatches.length > 0 && (
+        <Box mt={4}>
+          <Divider sx={{ mb: 2 }} />
+          <Stack direction="row" spacing={4} justifyContent="center">
+            <Box textAlign="center">
+              <Typography variant="h6" color="primary">
+                {stats.total}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Total matchs
+              </Typography>
+            </Box>
+            <Box textAlign="center">
+              <Typography variant="h6" color="success.main">
+                {stats.finished}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Terminés
+              </Typography>
+            </Box>
+            <Box textAlign="center">
+              <Typography variant="h6" color="primary.main">
+                {stats.upcoming}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                À venir
+              </Typography>
+            </Box>
+            {stats.live > 0 && (
+              <Box textAlign="center">
+                <Typography variant="h6" color="error.main">
+                  {stats.live}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  En cours
+                </Typography>
+              </Box>
+            )}
+          </Stack>
+        </Box>
       )}
     </Box>
   );

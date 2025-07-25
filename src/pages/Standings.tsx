@@ -74,35 +74,41 @@ export default function Standings() {
     return 'transparent';
   };
 
-  // Fonction pour parser la forme récente
+  // 🔧 CORRECTION COMPLÈTE de la fonction parseForm
   const parseForm = (form: string | null | undefined) => {
     if (!form) return null;
     
-    return form.split('').map((result, index) => {
-      let color = 'default' as const;
-      let label = result;
+    // Nettoyer les points et traiter chaque caractère
+    return form.replace(/\./g, '').split('').map((result, index) => {
+      // ✅ Type correct pour MUI Chip colors
+      let colorForme: 'default' | 'success' | 'error' | 'warning' = 'default';
+      let labelForme = result;
       
       switch (result) {
         case 'W':
-          color = 'success';
-          label = 'V';
+          colorForme = 'success';
+          labelForme = 'V';
           break;
         case 'L':
-          color = 'error';
-          label = 'D';
+          colorForme = 'error';  // ✅ L = Défaite = Rouge (error)
+          labelForme = 'D';
           break;
         case 'D':
-          color = 'warning';
-          label = 'N';
+          colorForme = 'warning'; // ✅ D = Nul = Orange (warning)
+          labelForme = 'N';
+          break;
+        default:
+          // Pour tout autre caractère, on enlève les points
+          labelForme = result.replace('.', '');
           break;
       }
       
       return (
         <Chip
           key={index}
-          label={label}
+          label={labelForme}  // ✅ Utilise labelForme, pas result
           size="small"
-          color={color}
+          color={colorForme}  // ✅ Utilise colorForme avec le bon type
           sx={{ 
             width: 24, 
             height: 24, 
@@ -110,6 +116,7 @@ export default function Standings() {
             fontWeight: 600,
             mr: 0.5
           }}
+          text-overflow:clip
         />
       );
     });
@@ -258,7 +265,7 @@ export default function Standings() {
                           <Avatar
                             src={entry.team.logo}
                             alt={entry.team.name}
-                            sx={{ width: 32, height: 32, mr: 2 }}
+                            sx={{  mr: 2 }}
                           />
                           <Typography 
                             variant="body1" 
