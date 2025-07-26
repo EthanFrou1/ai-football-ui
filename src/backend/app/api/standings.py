@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime
 from app.services.football_api import football_service
+import requests
+import os
 
 router = APIRouter(prefix="/standings", tags=["standings"])
 
@@ -148,3 +150,66 @@ async def get_standings_summary(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération: {str(e)}")
+    
+
+@router.get("/standings")
+async def get_standings(
+    league: int = Query(..., description="ID de la ligue"),
+    season: int = Query(..., description="Année de la saison")
+):
+    """
+    Récupère le classement d'une ligue pour une saison donnée
+    
+    Paramètres:
+    - league: ID de la ligue (ex: 61 pour Ligue 1, 39 pour Premier League)
+    - season: Année de la saison (ex: 2023)
+    """
+    
+    try:
+        # Appel à l'API Football
+        response = requests.get(
+            f"{BASE_URL}/standings",
+            headers=headers,
+            params={
+                "league": league,
+                "season": season
+            },
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Erreur API Football: {response.status_code}"
+            )
+        
+        data = response.json()
+        
+        # Vérifier la structure de réponse
+        if "response" not in data:
+            raise HTTPException(
+                status_code=500,
+                detail="Format de réponse API inattendu"
+            )
+        
+        # Log pour debug
+        print(f"✅ Standings récupérés: Ligue {league}, saison {season}")
+        
+        return data
+        
+    except requests.exceptions.Timeout:
+        raise HTTPException(
+            status_code=504,
+            detail="Timeout lors de l'appel à l'API Football"
+        )
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Erreur de connexion à l'API Football: {str(e)}"
+        )
+    except Exception as e:
+        print(f"❌ Erreur dans get_standings: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur interne du serveur: {str(e)}"
+        )

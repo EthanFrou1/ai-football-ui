@@ -8,14 +8,14 @@ import { TeamDetailsSkeleton } from "../components/UI/Loading";
 import ErrorHandler from "../components/UI/ErrorHandler";
 
 export default function TeamDetails() {
-  const { id } = useParams<{ id: string }>();
-  const teamId = parseInt(id || "0");
+  const { teamId } = useParams<{ teamId: string }>(); // ← Change ça
+  const teamIdNumber = parseInt(teamId || "0");
 
   // Récupérer les détails de l'équipe avec les joueurs
   const { data: team, loading, error, refetch } = useApi(
-    () => teamsService.getTeamWithPlayers(teamId),
-    [teamId], // Se recharge si l'ID change
-    true
+    () => teamsService.getTeamWithPlayers(teamIdNumber),
+    [teamIdNumber], // Se recharge si l'ID change
+    !!teamIdNumber && teamIdNumber > 0 // ← Ajoute cette condition
   );
 
   // Affichage du loading

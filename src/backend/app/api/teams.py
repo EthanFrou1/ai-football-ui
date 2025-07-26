@@ -34,38 +34,194 @@ async def get_team(team_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération: {str(e)}")
 
-@router.get("/{team_id}/players", response_model=TeamWithPlayers)
-async def get_team_with_players(
-    team_id: int,
-    season: int = Query(2024, description="Saison")
-):
+# À ajouter dans backend/app/api/teams.py
+
+@router.get("/{team_id}/players")
+async def get_team_with_players(team_id: int, season: int = Query(2023, description="Saison")):
     """
-    Récupérer une équipe avec ses joueurs
+    Récupérer une équipe avec ses détails et joueurs
     """
     try:
-        # Récupérer les infos de l'équipe et les joueurs en parallèle
-        import asyncio
-        team_task = football_service.get_team_by_id(team_id)
-        players_task = football_service.get_team_players(team_id, season)
+        # Appel à l'API Football pour les détails de l'équipe
+        team_data = await football_service._make_request("teams", {
+            "id": team_id
+        })
         
-        team, players = await asyncio.gather(team_task, players_task)
-        
-        if not team:
+        if not team_data.get("response") or len(team_data["response"]) == 0:
             raise HTTPException(status_code=404, detail="Équipe non trouvée")
         
-        # Convertir TeamDetail en TeamWithPlayers
-        team_with_players = TeamWithPlayers(
-            **team.dict(),
-            players=players
-        )
+        team_info = team_data["response"][0]
+        team = team_info["team"]
+        venue = team_info["venue"]
         
-        return team_with_players
+        # Appel pour les joueurs (optionnel)
+        players_data = []
+        try:
+            players_response = await football_service._make_request("players", {
+                "team": team_id,
+                "season": season
+            })
+            
+            if players_response.get("response"):
+                players_data = players_response["response"][:15]  # Limiter à 15 joueurs
+        except Exception as e:
+            print(f"Erreur lors de la récupération des joueurs: {e}")
+            # Continue sans les joueurs
+        
+        # Construire la réponse
+        result = {
+            "id": team["id"],
+            "name": team["name"],
+            "logo": team["logo"],
+            "country": team["country"],
+            "code": team["code"],
+            "founded": team["founded"],
+            "national": team["national"],
+        }
+        
+        # Ajouter les infos du stade si disponibles
+        if venue:
+            result.update({
+                "venue_name": venue.get("name"),
+                "venue_city": venue.get("city"),
+                "venue_capacity": venue.get("capacity"),
+                "venue_surface": venue.get("surface"),
+                "venue_address": venue.get("address"),
+                "venue_image": venue.get("image")
+            })
+        
+        # Ajouter les joueurs si disponibles
+        if players_data:
+            result["players"] = []
+            for player_item in players_data:
+                player = player_item["player"]
+                statistics = player_item.get("statistics", [{}])[0] if player_item.get("statistics") else {}
+                
+                result["players"].append({
+                    "id": player["id"],
+                    "name": player["name"],
+                    "age": player.get("age"),
+                    "nationality": player.get("nationality"),
+                    "height": player.get("height"),
+                    "weight": player.get("weight"),
+                    "photo": player.get("photo"),
+                    "injured": player.get("injured", False),
+                    "position": statistics.get("games", {}).get("position") if statistics else None
+                })
+        
+        return result
+        
     except HTTPException:
         raise
     except Exception as e:
+        print(f"Erreur API team details: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération: {str(e)}")
 
-@router.get("/", response_model=List[Team])
+# NOUVEAU: Endpoint pour récupérer toutes les équipes d'un championnat
+@router.get("/")
+async def get_teams_by_league(
+    league: int = Query(..., description="ID de la ligue"),
+    season: int = Query(..., description="Année de la saison")
+):
+    """
+    Récupère toutes les équipes d'un championnat avec leurs données enrichies du classement
+    
+    Paramètres:
+    - league: ID de la ligue (ex: 61 pour Ligue 1, 39 pour Premier League)
+    - season: Année de la saison (ex: 2023)
+    
+    Retourne les équipes avec leurs données de classement (position, points, etc.)
+    """
+    try:
+        # Appel à l'API Football pour récupérer le classement (qui contient toutes les équipes)
+        data = await football_service._make_request("standings", {
+            "league": league,
+            "season": season
+        })
+        
+        if not data.get("response"):
+            raise HTTPException(status_code=404, detail="Classement non trouvé")
+        
+        league_data = data["response"][0]
+        
+        # Vérifier s'il y a des standings
+        if not league_data["league"]["standings"]:
+            raise HTTPException(status_code=404, detail="Aucun classement disponible")
+            
+        standings_data = league_data["league"]["standings"][0]  # Premier groupe (championnat principal)
+        
+        # Transformer les données pour avoir toutes les équipes avec leurs stats
+        teams = []
+        for entry in standings_data:
+            team_data = {
+                "id": entry["team"]["id"],
+                "name": entry["team"]["name"],
+                "logo": entry["team"]["logo"],
+                "country": league_data["league"]["country"],
+                
+                # Données du classement
+                "position": entry["rank"],
+                "points": entry["points"],
+                "goalsDiff": entry["goalsDiff"],
+                "form": entry["form"],
+                "status": entry["status"],
+                "description": entry["description"],
+                
+                # Statistiques complètes
+                "played": entry["all"]["played"],
+                "wins": entry["all"]["win"],
+                "draws": entry["all"]["draw"],
+                "losses": entry["all"]["lose"],
+                "goals_for": entry["all"]["goals"]["for"],
+                "goals_against": entry["all"]["goals"]["against"],
+                
+                # Statistiques domicile/extérieur
+                "home": {
+                    "played": entry["home"]["played"],
+                    "wins": entry["home"]["win"],
+                    "draws": entry["home"]["draw"],
+                    "losses": entry["home"]["lose"],
+                    "goals_for": entry["home"]["goals"]["for"],
+                    "goals_against": entry["home"]["goals"]["against"]
+                },
+                "away": {
+                    "played": entry["away"]["played"],
+                    "wins": entry["away"]["win"],
+                    "draws": entry["away"]["draw"],
+                    "losses": entry["away"]["lose"],
+                    "goals_for": entry["away"]["goals"]["for"],
+                    "goals_against": entry["away"]["goals"]["against"]
+                },
+                
+                "last_update": entry["update"]
+            }
+            teams.append(team_data)
+        
+        # Métadonnées de la ligue
+        league_info = {
+            "id": league_data["league"]["id"],
+            "name": league_data["league"]["name"],
+            "country": league_data["league"]["country"],
+            "logo": league_data["league"]["logo"],
+            "flag": league_data["league"]["flag"],
+            "season": league_data["league"]["season"]
+        }
+        
+        return {
+            "league": league_info,
+            "teams": teams,
+            "total": len(teams),
+            "last_update": league_data["league"]["standings"][0][0]["update"] if teams else None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Erreur API teams: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des équipes: {str(e)}")
+
+# Garde l'ancien endpoint pour les équipes populaires (compatibilité)
+@router.get("/popular")
 async def get_popular_teams():
     """
     Récupérer une liste d'équipes populaires (équipes françaises par défaut)

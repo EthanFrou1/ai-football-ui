@@ -40,3 +40,28 @@
 .read-the-docs {
   color: #888;
 }
+/* Fix pour la colonne Forme - empêcher les ... */
+.MuiChip-label {
+  overflow: visible !important;
+  text-overflow: unset !important;
+  white-space: nowrap !important;
+}
+
+/* Ou plus spécifique pour les chips de forme */
+.css-1pjtbja-MuiChip-label,
+.css-traay2-MuiChip-label,
+.css-ecknh-MuiChip-label {
+  overflow: visible !important;
+  text-overflow: unset !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+}
+
+/* Assurer que les containers des chips ont assez d'espace */
+.form-container {
+  display: flex !important;
+  gap: 2px !important;
+  flex-wrap: nowrap !important;
+  min-width: 120px !important;
+}
+

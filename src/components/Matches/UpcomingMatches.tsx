@@ -12,7 +12,7 @@ import {
   Divider
 } from "@mui/material";
 import { useUpcomingMatches } from "../../hooks/useMatches";
-import { useContext } from "react";
+// import { useContext } from "react";
 // import { LeagueContext } from "../../contexts/LeagueContext"; // À décommenter quand le context sera disponible
 
 // Interface pour les props

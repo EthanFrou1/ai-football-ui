@@ -104,7 +104,7 @@ export default function Standings() {
       }
       
       return (
-        <Chip
+       <Chip
           key={index}
           label={labelForme}  // ✅ Utilise labelForme, pas result
           size="small"
@@ -114,9 +114,15 @@ export default function Standings() {
             height: 24, 
             fontSize: '0.75rem',
             fontWeight: 600,
-            mr: 0.5
+            mr: 0.5,
+            // 🔧 FIX pour les "..." - styles directs
+            '& .MuiChip-label': {
+              overflow: 'visible !important',
+              textOverflow: 'unset !important',
+              whiteSpace: 'nowrap !important',
+              padding: '0 4px !important'
+            }
           }}
-          text-overflow:clip
         />
       );
     });

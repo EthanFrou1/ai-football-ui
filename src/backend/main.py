@@ -6,7 +6,8 @@ import uvicorn
 from app.config.settings import settings
 from app.api.teams import router as teams_router
 from app.api.matches import router as matches_router
-from app.api.standings import router as standings_router  # ← NOUVEAU
+
+from app.api.standings import router as standings_router 
 
 # Créer l'application FastAPI
 app = FastAPI(

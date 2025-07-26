@@ -12,11 +12,12 @@ export const API_CONFIG = {
 // Endpoints disponibles
 export const ENDPOINTS = {
   // Teams endpoints
-  TEAMS: {
+TEAMS: {
     SEARCH: '/teams/search',
     GET_BY_ID: '/teams',
-    GET_POPULAR: '/teams',
+    GET_POPULAR: '/teams/popular',
     GET_WITH_PLAYERS: '/teams', // + /{id}/players
+    GET_BY_LEAGUE: '/teams', // + ?league={id}&season={year} - NOUVEAU
   },
   
   // Matches endpoints

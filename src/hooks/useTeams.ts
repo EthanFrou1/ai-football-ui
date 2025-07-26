@@ -1,143 +1,194 @@
 // src/hooks/useTeams.ts
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { teamsService, sortTeams, filterTeamsBySearch, type TeamWithStandingData, type SortOption, type TeamsFilters } from '../services/api/teamsService';
-import { useApi } from './useApi';
+import { useState, useEffect, useMemo } from 'react';
+import { 
+  fetchTeamsFromStandings,
+  searchTeams,
+  sortTeams,
+  filterTeamsByQualification,
+  getTeamsStats,
+  type TeamFromStandings
+} from '../services/api/teamsService';
 import { useDebouncedValue } from './useDebouncedValue';
 
-interface UseTeamsOptions {
-  leagueId: number;
-  season: number;
-  initialSort?: SortOption;
+// Types pour les filtres
+interface TeamFilters {
+  search: string;
+  sortBy: 'position' | 'name' | 'points';
+  qualification: 'all' | 'champions-league' | 'europa-league' | 'relegation';
+  viewMode: 'grid' | 'list';
 }
 
-interface UseTeamsReturn {
+// Interface du hook
+interface UseTeamsResult {
   // Données
-  teams: TeamWithStandingData[];
-  filteredTeams: TeamWithStandingData[];
-  total: number;
+  teams: TeamFromStandings[];
+  allTeams: TeamFromStandings[];
   
   // États
   loading: boolean;
-  error: any; // ✅ Changé pour correspondre au type de useApi
+  error: string | null;
   
-  // Contrôles
+  // Filtres et recherche
+  filters: TeamFilters;
+  setFilters: (filters: Partial<TeamFilters>) => void;
+  clearFilters: () => void;
+  
+  // Recherche avec debounce
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  sortOption: SortOption;
-  setSortOption: (sort: SortOption) => void;
+  debouncedSearch: string;
+  
+  // Statistiques
+  stats: {
+    total: number;
+    filtered: number;
+    championsLeague: number;
+    europaLeague: number;
+    relegation: number;
+    averagePoints: number;
+    topScorer: TeamFromStandings | null;
+    bestDefense: TeamFromStandings | null;
+  };
   
   // Actions
-  refetch: () => void;
-  clearSearch: () => void;
+  refetch: () => Promise<void>;
 }
 
-export const useTeams = ({
-  leagueId,
-  season,
-  initialSort = 'rank-asc'
-}: UseTeamsOptions): UseTeamsReturn => {
-  // États locaux
+export function useTeams(leagueId: number, season: number): UseTeamsResult {
+  // États principaux
+  const [allTeams, setAllTeams] = useState<TeamFromStandings[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortOption, setSortOption] = useState<SortOption>(initialSort);
-  const [allTeams, setAllTeams] = useState<TeamWithStandingData[]>([]);
   
-  // Debounce de la recherche pour éviter trop de re-calculs
+  // États pour filtres
+  const [filters, setFiltersState] = useState<TeamFilters>({
+    search: '',
+    sortBy: 'position',
+    qualification: 'all',
+    viewMode: 'grid',
+  });
+
+  // Recherche avec debounce
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
-  
-  // Appel API unique (sans filtres) - les filtres sont appliqués côté client
-  const { 
-    data: teamsData, 
-    loading, 
-    error, 
-    refetch 
-  } = useApi(
-    async () => {
-      if (!leagueId || !season) throw new Error('League ID et saison requis');
-      console.log('🔄 Fetching teams data from API...');
-      return teamsService.getTeams(leagueId, season); // Pas de filtres ici !
-    },
-    [leagueId, season], // Seulement dépendant de league/season
-    !!(leagueId && season)
-  );
-  
-  // Mettre à jour les équipes quand les données arrivent
-  useEffect(() => {
-    if (teamsData?.teams) {
-      setAllTeams(teamsData.teams);
+
+  // Fonction pour charger les données
+  const fetchData = async () => {
+    if (!leagueId || !season) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log(`🔄 useTeams: Chargement des équipes pour league=${leagueId}, season=${season}`);
+      const teams = await fetchTeamsFromStandings(leagueId, season);
+      console.log(`✅ useTeams: ${teams.length} équipes chargées`);
+      setAllTeams(teams);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur lors du chargement des équipes';
+      setError(errorMessage);
+      console.error('❌ Erreur useTeams:', err);
+    } finally {
+      setLoading(false);
     }
-  }, [teamsData]);
-  
-  // Filtrage et tri côté client en temps réel
+  };
+
+  // Charger les données au montage et quand leagueId/season change
+  useEffect(() => {
+    fetchData();
+  }, [leagueId, season]);
+
+  // Mettre à jour les filtres quand la recherche change
+  useEffect(() => {
+    setFiltersState(prev => ({
+      ...prev,
+      search: debouncedSearch,
+    }));
+  }, [debouncedSearch]);
+
+  // Appliquer les filtres et la recherche
   const filteredTeams = useMemo(() => {
     let result = [...allTeams];
-    
-    // 1. Filtrage par recherche
-    if (debouncedSearch.trim()) {
-      const searchLower = debouncedSearch.toLowerCase();
-      result = result.filter(team => 
-        team.name.toLowerCase().includes(searchLower) ||
-        team.country.toLowerCase().includes(searchLower)
-      );
+
+    // Recherche
+    if (filters.search) {
+      result = searchTeams(result, filters.search);
     }
-    
-    // 2. Tri
-    result = sortTeams(result, sortOption);
-    
+
+    // Filtre par qualification
+    result = filterTeamsByQualification(result, filters.qualification);
+
+    // Tri
+    result = sortTeams(result, filters.sortBy);
+
     return result;
-  }, [allTeams, debouncedSearch, sortOption]);
-  
-  // Fonction pour vider la recherche
-  const clearSearch = useCallback(() => {
+  }, [allTeams, filters]);
+
+  // Calculer les statistiques
+  const stats = useMemo(() => {
+    const baseStats = allTeams.length > 0 ? getTeamsStats(allTeams) : {
+      total: 0,
+      championsLeague: 0,
+      europaLeague: 0,
+      relegation: 0,
+      averagePoints: 0,
+      topScorer: null,
+      bestDefense: null,
+    };
+
+    return {
+      ...baseStats,
+      filtered: filteredTeams.length,
+    };
+  }, [allTeams, filteredTeams]);
+
+  // Fonction pour mettre à jour les filtres
+  const setFilters = (newFilters: Partial<TeamFilters>) => {
+    setFiltersState(prev => ({
+      ...prev,
+      ...newFilters,
+    }));
+  };
+
+  // Fonction pour vider les filtres
+  const clearFilters = () => {
     setSearchQuery('');
-  }, []);
-  
-  // Debug en développement
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 useTeams Debug:', {
-        leagueId,
-        season,
-        searchQuery: debouncedSearch,
-        sortOption,
-        allTeamsCount: allTeams.length,
-        filteredCount: filteredTeams.length,
-        loading,
-        error: error?.message,
-        cacheInfo: teamsService.getCacheInfo()
-      });
-    }
-  }, [leagueId, season, debouncedSearch, sortOption, allTeams.length, filteredTeams.length, loading, error]);
-  
+    setFiltersState({
+      search: '',
+      sortBy: 'position',
+      qualification: 'all',
+      viewMode: 'grid',
+    });
+  };
+
+  // Fonction pour recharger les données
+  const refetch = async () => {
+    await fetchData();
+  };
+
   return {
     // Données
-    teams: allTeams,
-    filteredTeams,
-    total: allTeams.length,
+    teams: filteredTeams,
+    allTeams,
     
     // États
     loading,
     error,
     
-    // Contrôles
+    // Filtres et recherche
+    filters,
+    setFilters,
+    clearFilters,
+    
+    // Recherche avec debounce
     searchQuery,
     setSearchQuery,
-    sortOption,
-    setSortOption,
+    debouncedSearch,
+    
+    // Statistiques
+    stats,
     
     // Actions
     refetch,
-    clearSearch
   };
-};
-
-// Hook pour récupérer une équipe spécifique
-export const useTeamDetails = (teamId: number, season?: number) => {
-  return useApi(
-    async () => {
-      if (!teamId) throw new Error('Team ID requis');
-      return teamsService.getTeamDetails(teamId, season);
-    },
-    [teamId, season],
-    !!teamId
-  );
-};
+}
