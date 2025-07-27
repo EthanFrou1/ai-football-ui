@@ -20,6 +20,8 @@ import {
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { useTeams } from '../hooks/useTeams';
+import Layout from '../components/Layout/Layout';
+import BreadcrumbNavigation from '../components/UI/BreadcrumbNavigation';
 
 // Composant pour une carte d'équipe
 interface TeamCardProps {
@@ -211,194 +213,200 @@ export default function Teams() {
 
   if (loading) {
     return (
-      <Box 
-        display="flex" 
-        justifyContent="center" 
-        alignItems="center" 
-        minHeight="400px"
-      >
-        <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Chargement des équipes...</Typography>
-      </Box>
+      <Layout showBreadcrumb breadcrumbComponent={<BreadcrumbNavigation />}>
+        <Box 
+          display="flex" 
+          justifyContent="center" 
+          alignItems="center" 
+          minHeight="400px"
+        >
+          <CircularProgress />
+          <Typography sx={{ ml: 2 }}>Chargement des équipes...</Typography>
+        </Box>
+      </Layout>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-        <Button variant="contained" onClick={refetch}>
-          Réessayer
-        </Button>
-      </Box>
+      <Layout showBreadcrumb breadcrumbComponent={<BreadcrumbNavigation />}>
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+          <Button variant="contained" onClick={refetch}>
+            Réessayer
+          </Button>
+        </Box>
+      </Layout>
     );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* En-tête avec statistiques */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box>
-          <Typography variant="h4">
-            Équipes ({stats.total})
-          </Typography>
-          <Box display="flex" gap={2} mt={1}>
-            <Chip 
-              label={`${stats.championsLeague} en C1`} 
-              color="success" 
-              size="small" 
-            />
-            <Chip 
-              label={`${stats.europaLeague} en C3`} 
-              color="info" 
-              size="small" 
-            />
-            <Chip 
-              label={`${stats.relegation} en danger`} 
-              color="error" 
-              size="small" 
-            />
+    <Layout showBreadcrumb breadcrumbComponent={<BreadcrumbNavigation />}>
+      <Box sx={{ p: 3 }}>
+        {/* En-tête avec statistiques */}
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Box>
+            <Typography variant="h4">
+              Équipes ({stats.total})
+            </Typography>
+            <Box display="flex" gap={2} mt={1}>
+              <Chip 
+                label={`${stats.championsLeague} en C1`} 
+                color="success" 
+                size="small" 
+              />
+              <Chip 
+                label={`${stats.europaLeague} en C3`} 
+                color="info" 
+                size="small" 
+              />
+              <Chip 
+                label={`${stats.relegation} en danger`} 
+                color="error" 
+                size="small" 
+              />
+            </Box>
           </Box>
-        </Box>
-        <Button variant="outlined" size="small" onClick={refetch}>
-          Actualiser
-        </Button>
-      </Box>
-
-      {/* Statistiques supplémentaires */}
-      <Box display="flex" gap={2} mb={3} flexWrap="wrap">
-        <Card sx={{ p: 2, minWidth: 200 }}>
-          <Typography variant="subtitle2" color="text.secondary">
-            Meilleure attaque
-          </Typography>
-          <Typography variant="h6">
-            {stats.topScorer?.name || 'N/A'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {stats.topScorer?.goals_for || 0} buts
-          </Typography>
-        </Card>
-        
-        <Card sx={{ p: 2, minWidth: 200 }}>
-          <Typography variant="subtitle2" color="text.secondary">
-            Meilleure défense
-          </Typography>
-          <Typography variant="h6">
-            {stats.bestDefense?.name || 'N/A'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {stats.bestDefense?.goals_against || 0} buts encaissés
-          </Typography>
-        </Card>
-        
-        <Card sx={{ p: 2, minWidth: 200 }}>
-          <Typography variant="subtitle2" color="text.secondary">
-            Moyenne de points
-          </Typography>
-          <Typography variant="h6">
-            {stats.averagePoints}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            points par équipe
-          </Typography>
-        </Card>
-      </Box>
-
-      {/* Filtres et contrôles */}
-      <Box display="flex" gap={2} mb={3} flexWrap="wrap" alignItems="center">
-        <TextField
-          label="Rechercher une équipe"
-          variant="outlined"
-          size="small"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          sx={{ minWidth: 250 }}
-        />
-        
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Trier par</InputLabel>
-          <Select
-            value={filters.sortBy}
-            onChange={(e) => setFilters({ sortBy: e.target.value as any })}
-            label="Trier par"
-          >
-            <MenuItem value="position">Position</MenuItem>
-            <MenuItem value="name">Nom</MenuItem>
-            <MenuItem value="points">Points</MenuItem>
-          </Select>
-        </FormControl>
-        
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Qualification</InputLabel>
-          <Select
-            value={filters.qualification}
-            onChange={(e) => setFilters({ qualification: e.target.value as any })}
-            label="Qualification"
-          >
-            <MenuItem value="all">Toutes</MenuItem>
-            <MenuItem value="champions-league">Champions League</MenuItem>
-            <MenuItem value="europa-league">Europa League</MenuItem>
-            <MenuItem value="relegation">Relégation</MenuItem>
-          </Select>
-        </FormControl>
-        
-        <FormControlLabel
-          control={
-            <Switch
-              checked={isGridView}
-              onChange={(e) => setIsGridView(e.target.checked)}
-            />
-          }
-          label={isGridView ? "Vue grille" : "Vue liste"}
-        />
-        
-        {(filters.search || filters.qualification !== 'all' || filters.sortBy !== 'position') && (
-          <Button 
-            variant="outlined" 
-            size="small" 
-            onClick={clearFilters}
-          >
-            Réinitialiser filtres
+          <Button variant="outlined" size="small" onClick={refetch}>
+            Actualiser
           </Button>
-        )}
-      </Box>
+        </Box>
 
-      {/* Résultats */}
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        {teams.length} équipe(s) affichée(s)
-        {searchQuery && ` pour "${searchQuery}"`}
-        {filters.qualification !== 'all' && ` • Filtre: ${filters.qualification}`}
-      </Typography>
+        {/* Statistiques supplémentaires */}
+        <Box display="flex" gap={2} mb={3} flexWrap="wrap">
+          <Card sx={{ p: 2, minWidth: 200 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              Meilleure attaque
+            </Typography>
+            <Typography variant="h6">
+              {stats.topScorer?.name || 'N/A'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {stats.topScorer?.goals_for || 0} buts
+            </Typography>
+          </Card>
+          
+          <Card sx={{ p: 2, minWidth: 200 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              Meilleure défense
+            </Typography>
+            <Typography variant="h6">
+              {stats.bestDefense?.name || 'N/A'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {stats.bestDefense?.goals_against || 0} buts encaissés
+            </Typography>
+          </Card>
+          
+          <Card sx={{ p: 2, minWidth: 200 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              Moyenne de points
+            </Typography>
+            <Typography variant="h6">
+              {stats.averagePoints}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              points par équipe
+            </Typography>
+          </Card>
+        </Box>
 
-      {/* Grille des équipes */}
-      <Grid container spacing={isGridView ? 3 : 1}>
-        {teams.map((team) => (
-          <TeamCard 
-            key={team.id} 
-            team={team} 
-            isGridView={isGridView}
+        {/* Filtres et contrôles */}
+        <Box display="flex" gap={2} mb={3} flexWrap="wrap" alignItems="center">
+          <TextField
+            label="Rechercher une équipe"
+            variant="outlined"
+            size="small"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            sx={{ minWidth: 250 }}
           />
-        ))}
-      </Grid>
-
-      {teams.length === 0 && (
-        <Box textAlign="center" py={4}>
-          <Typography variant="h6" color="text.secondary">
-            Aucune équipe trouvée
-          </Typography>
-          {(searchQuery || filters.qualification !== 'all') && (
-            <Button 
-              variant="text" 
-              onClick={clearFilters}
-              sx={{ mt: 1 }}
+          
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Trier par</InputLabel>
+            <Select
+              value={filters.sortBy}
+              onChange={(e) => setFilters({ sortBy: e.target.value as any })}
+              label="Trier par"
             >
-              Réinitialiser les filtres
+              <MenuItem value="position">Position</MenuItem>
+              <MenuItem value="name">Nom</MenuItem>
+              <MenuItem value="points">Points</MenuItem>
+            </Select>
+          </FormControl>
+          
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Qualification</InputLabel>
+            <Select
+              value={filters.qualification}
+              onChange={(e) => setFilters({ qualification: e.target.value as any })}
+              label="Qualification"
+            >
+              <MenuItem value="all">Toutes</MenuItem>
+              <MenuItem value="champions-league">Champions League</MenuItem>
+              <MenuItem value="europa-league">Europa League</MenuItem>
+              <MenuItem value="relegation">Relégation</MenuItem>
+            </Select>
+          </FormControl>
+          
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isGridView}
+                onChange={(e) => setIsGridView(e.target.checked)}
+              />
+            }
+            label={isGridView ? "Vue grille" : "Vue liste"}
+          />
+          
+          {(filters.search || filters.qualification !== 'all' || filters.sortBy !== 'position') && (
+            <Button 
+              variant="outlined" 
+              size="small" 
+              onClick={clearFilters}
+            >
+              Réinitialiser filtres
             </Button>
           )}
         </Box>
-      )}
-    </Box>
+
+        {/* Résultats */}
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {teams.length} équipe(s) affichée(s)
+          {searchQuery && ` pour "${searchQuery}"`}
+          {filters.qualification !== 'all' && ` • Filtre: ${filters.qualification}`}
+        </Typography>
+
+        {/* Grille des équipes */}
+        <Grid container spacing={isGridView ? 3 : 1}>
+          {teams.map((team) => (
+            <TeamCard 
+              key={team.id} 
+              team={team} 
+              isGridView={isGridView}
+            />
+          ))}
+        </Grid>
+
+        {teams.length === 0 && (
+          <Box textAlign="center" py={4}>
+            <Typography variant="h6" color="text.secondary">
+              Aucune équipe trouvée
+            </Typography>
+            {(searchQuery || filters.qualification !== 'all') && (
+              <Button 
+                variant="text" 
+                onClick={clearFilters}
+                sx={{ mt: 1 }}
+              >
+                Réinitialiser les filtres
+              </Button>
+            )}
+          </Box>
+        )}
+      </Box>
+    </Layout>
   );
 }

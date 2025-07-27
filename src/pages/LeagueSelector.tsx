@@ -10,6 +10,8 @@ import {
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { Sports } from '@mui/icons-material';
+import Header from '../components/UI/Header';
+import BreadcrumbNavigation from '../components/UI/BreadcrumbNavigation';
 
 export default function LeagueSelector() {
   const leagues = [
@@ -70,6 +72,9 @@ export default function LeagueSelector() {
   ];
 
   return (
+    <>
+    <Header />
+    <BreadcrumbNavigation />
     <Box>
       {/* Section Hero */}
       <Box
@@ -179,5 +184,6 @@ export default function LeagueSelector() {
         </Grid>
       </Container>
     </Box>
+    </>
   );
 }

@@ -38,7 +38,6 @@ export default function AppRouter() {
                 {/* Pages avec header et contexte - ROUTES PLATES */}
                 <Route path="/league/:leagueId/standings" element={
                     <LeagueProvider>
-                        <Header />
                         <Standings />
                     </LeagueProvider>
                 } />
@@ -52,7 +51,6 @@ export default function AppRouter() {
                 
                 <Route path="/league/:leagueId/team/:teamId" element={
                     <LeagueProvider>
-                        <Header />
                         <TeamDetails />
                     </LeagueProvider>
                 } />

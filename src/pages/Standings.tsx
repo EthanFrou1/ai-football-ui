@@ -26,6 +26,8 @@ import { standingsService } from '../services/api/standingsService';
 import { LoadingSpinner } from '../components/UI/Loading';
 import ErrorHandler from '../components/UI/ErrorHandler';
 import SeasonSelector from '../components/UI/SeasonSelector';
+import Layout from '../components/Layout/Layout';
+import BreadcrumbNavigation from '../components/UI/BreadcrumbNavigation';
 import type { StandingEntry } from '../services/api/standingsService';
 
 export default function Standings() {
@@ -129,271 +131,283 @@ export default function Standings() {
   };
 
   if (leagueLoading || !currentLeague) {
-    return <LoadingSpinner message="Chargement du championnat..." />;
+    return (
+      <Layout showBreadcrumb breadcrumbComponent={<BreadcrumbNavigation />}>
+        <LoadingSpinner message="Chargement du championnat..." />
+      </Layout>
+    );
   }
 
   if (loading) {
-    return <LoadingSpinner message="Chargement du classement..." />;
+    return (
+      <Layout showBreadcrumb breadcrumbComponent={<BreadcrumbNavigation />}>
+        <LoadingSpinner message="Chargement du classement..." />
+      </Layout>
+    );
   }
 
   if (error) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <ErrorHandler error={error} onRetry={refetch} />
-      </Container>
+      <Layout showBreadcrumb breadcrumbComponent={<BreadcrumbNavigation />}>
+        <Container maxWidth="lg" sx={{ py: 4 }}>
+          <ErrorHandler error={error} onRetry={refetch} />
+        </Container>
+      </Layout>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* En-tête avec sélecteur de saison */}
-      <Box sx={{ mb: 4 }}>
-        <Grid container spacing={3} alignItems="flex-start">
-          <Grid item xs={12} md={8}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <EmojiEvents sx={{ color: '#ffd700', fontSize: 32, mr: 2 }} />
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                Classement {currentLeague.name}
+    <Layout showBreadcrumb breadcrumbComponent={<BreadcrumbNavigation />}>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        {/* En-tête avec sélecteur de saison */}
+        <Box sx={{ mb: 4 }}>
+          <Grid container spacing={3} alignItems="flex-start">
+            <Grid item xs={12} md={8}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <EmojiEvents sx={{ color: '#ffd700', fontSize: 32, mr: 2 }} />
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                  Classement {currentLeague.name}
+                </Typography>
+              </Box>
+              <Typography variant="body1" color="text.secondary">
+                Classement général • Saison {getSeasonLabel(selectedSeason)}
               </Typography>
-            </Box>
-            <Typography variant="body1" color="text.secondary">
-              Classement général • Saison {getSeasonLabel(selectedSeason)}
-            </Typography>
+            </Grid>
+            
+            <Grid item xs={12} md={4}>
+              <SeasonSelector
+                selectedSeason={selectedSeason}
+                onSeasonChange={setSelectedSeason}
+                fullWidth
+              />
+            </Grid>
           </Grid>
-          
-          <Grid item xs={12} md={4}>
-            <SeasonSelector
-              selectedSeason={selectedSeason}
-              onSeasonChange={setSelectedSeason}
-              fullWidth
-            />
+        </Box>
+
+        {/* Stats rapides */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h4" color="primary" sx={{ fontWeight: 700 }}>
+                  {standings?.length || 0}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Équipes
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h4" color="success.main" sx={{ fontWeight: 700 }}>
+                  {standings?.[0]?.points || 0}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Points (Leader)
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h4" color="warning.main" sx={{ fontWeight: 700 }}>
+                  {standings?.[0]?.all.played || 0}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Journées jouées
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="h4" color="info.main" sx={{ fontWeight: 700 }}>
+                  {standings?.[0]?.goalsDiff || 0}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Goal Average (Leader)
+                </Typography>
+              </CardContent>
+            </Card>
           </Grid>
         </Grid>
-      </Box>
 
-      {/* Stats rapides */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="primary" sx={{ fontWeight: 700 }}>
-                {standings?.length || 0}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Équipes
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="success.main" sx={{ fontWeight: 700 }}>
-                {standings?.[0]?.points || 0}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Points (Leader)
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="warning.main" sx={{ fontWeight: 700 }}>
-                {standings?.[0]?.all.played || 0}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Journées jouées
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="info.main" sx={{ fontWeight: 700 }}>
-                {standings?.[0]?.goalsDiff || 0}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Goal Average (Leader)
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Tableau du classement */}
-      <Card>
-        <CardContent sx={{ p: 0 }}>
-          <TableContainer component={Paper} elevation={0}>
-            <Table>
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.50' }}>
-                  <TableCell sx={{ fontWeight: 700, width: 60 }}>Position</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Équipe</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>MJ</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>V</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>N</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>D</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, width: 80 }}>BP/BC</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>+/-</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>Pts</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, width: 120 }}>Forme</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {standings && standings.length > 0 ? standings.map((entry) => (
-                  <TableRow 
-                    key={entry.team.id}
-                    sx={{ 
-                      '&:hover': { bgcolor: 'grey.50' },
-                      borderLeft: `4px solid ${getQualificationColor(entry.description)}`
-                    }}
-                  >
-                    {/* Position */}
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Typography variant="h6" sx={{ fontWeight: 700, mr: 1 }}>
-                          {entry.rank}
-                        </Typography>
-                        {getTrendIcon(entry.status)}
-                      </Box>
-                    </TableCell>
-
-                    {/* Équipe */}
-                    <TableCell>
-                      <Link 
-                        to={`/league/${currentLeague.id}/team/${entry.team.id}`}
-                        style={{ textDecoration: 'none' }}
-                      >
+        {/* Tableau du classement */}
+        <Card>
+          <CardContent sx={{ p: 0 }}>
+            <TableContainer component={Paper} elevation={0}>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.50' }}>
+                    <TableCell sx={{ fontWeight: 700, width: 60 }}>Position</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Équipe</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>MJ</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>V</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>N</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>D</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, width: 80 }}>BP/BC</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>+/-</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, width: 60 }}>Pts</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 700, width: 120 }}>Forme</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {standings && standings.length > 0 ? standings.map((entry) => (
+                    <TableRow 
+                      key={entry.team.id}
+                      sx={{ 
+                        '&:hover': { bgcolor: 'grey.50' },
+                        borderLeft: `4px solid ${getQualificationColor(entry.description)}`
+                      }}
+                    >
+                      {/* Position */}
+                      <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Avatar
-                            src={entry.team.logo}
-                            alt={entry.team.name}
-                            sx={{  mr: 2 }}
-                          />
-                          <Typography 
-                            variant="body1" 
-                            sx={{ 
-                              fontWeight: 600,
-                              color: 'text.primary',
-                              '&:hover': { color: 'primary.main' }
-                            }}
-                          >
-                            {entry.team.name}
+                          <Typography variant="h6" sx={{ fontWeight: 700, mr: 1 }}>
+                            {entry.rank}
                           </Typography>
+                          {getTrendIcon(entry.status)}
                         </Box>
-                      </Link>
-                    </TableCell>
+                      </TableCell>
 
-                    {/* Matchs joués */}
-                    <TableCell align="center">{entry.all.played}</TableCell>
+                      {/* Équipe */}
+                      <TableCell>
+                        <Link 
+                          to={`/league/${currentLeague.id}/team/${entry.team.id}`}
+                          style={{ textDecoration: 'none' }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Avatar
+                              src={entry.team.logo}
+                              alt={entry.team.name}
+                              sx={{  mr: 2 }}
+                            />
+                            <Typography 
+                              variant="body1" 
+                              sx={{ 
+                                fontWeight: 600,
+                                color: 'text.primary',
+                                '&:hover': { color: 'primary.main' }
+                              }}
+                            >
+                              {entry.team.name}
+                            </Typography>
+                          </Box>
+                        </Link>
+                      </TableCell>
 
-                    {/* Victoires */}
-                    <TableCell align="center" sx={{ color: 'success.main', fontWeight: 600 }}>
-                      {entry.all.win}
-                    </TableCell>
+                      {/* Matchs joués */}
+                      <TableCell align="center">{entry.all.played}</TableCell>
 
-                    {/* Nuls */}
-                    <TableCell align="center" sx={{ color: 'warning.main', fontWeight: 600 }}>
-                      {entry.all.draw}
-                    </TableCell>
+                      {/* Victoires */}
+                      <TableCell align="center" sx={{ color: 'success.main', fontWeight: 600 }}>
+                        {entry.all.win}
+                      </TableCell>
 
-                    {/* Défaites */}
-                    <TableCell align="center" sx={{ color: 'error.main', fontWeight: 600 }}>
-                      {entry.all.lose}
-                    </TableCell>
+                      {/* Nuls */}
+                      <TableCell align="center" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                        {entry.all.draw}
+                      </TableCell>
 
-                    {/* Buts pour/contre */}
-                    <TableCell align="center">
-                      <Typography variant="body2">
-                        {entry.all.goals.for}/{entry.all.goals.against}
-                      </Typography>
-                    </TableCell>
+                      {/* Défaites */}
+                      <TableCell align="center" sx={{ color: 'error.main', fontWeight: 600 }}>
+                        {entry.all.lose}
+                      </TableCell>
 
-                    {/* Différence de buts */}
-                    <TableCell align="center">
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          color: entry.goalsDiff > 0 ? 'success.main' : 
-                                 entry.goalsDiff < 0 ? 'error.main' : 'text.primary',
-                          fontWeight: 600
-                        }}
-                      >
-                        {entry.goalsDiff > 0 ? '+' : ''}{entry.goalsDiff}
-                      </Typography>
-                    </TableCell>
+                      {/* Buts pour/contre */}
+                      <TableCell align="center">
+                        <Typography variant="body2">
+                          {entry.all.goals.for}/{entry.all.goals.against}
+                        </Typography>
+                      </TableCell>
 
-                    {/* Points */}
-                    <TableCell align="center">
-                      <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                        {entry.points}
-                      </Typography>
-                    </TableCell>
+                      {/* Différence de buts */}
+                      <TableCell align="center">
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            color: entry.goalsDiff > 0 ? 'success.main' : 
+                                   entry.goalsDiff < 0 ? 'error.main' : 'text.primary',
+                            fontWeight: 600
+                          }}
+                        >
+                          {entry.goalsDiff > 0 ? '+' : ''}{entry.goalsDiff}
+                        </Typography>
+                      </TableCell>
 
-                    {/* Forme récente */}
-                    <TableCell align="center">
-                      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                        {parseForm(entry.form) || (
-                          <Typography variant="caption" color="text.secondary">
-                            -
-                          </Typography>
-                        )}
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                )) : (
-                  <TableRow>
-                    <TableCell colSpan={10} align="center">
-                      <Typography variant="body1" color="text.secondary" sx={{ py: 4 }}>
-                        Aucune donnée de classement disponible
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
+                      {/* Points */}
+                      <TableCell align="center">
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                          {entry.points}
+                        </Typography>
+                      </TableCell>
 
-      {/* Légende */}
-      <Card sx={{ mt: 3 }}>
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-            Légende des qualifications
+                      {/* Forme récente */}
+                      <TableCell align="center">
+                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                          {parseForm(entry.form) || (
+                            <Typography variant="caption" color="text.secondary">
+                              -
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={10} align="center">
+                        <Typography variant="body1" color="text.secondary" sx={{ py: 4 }}>
+                          Aucune donnée de classement disponible
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </CardContent>
+        </Card>
+
+        {/* Légende */}
+        <Card sx={{ mt: 3 }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+              Légende des qualifications
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box sx={{ width: 16, height: 16, bgcolor: '#00387b', mr: 1, borderRadius: 0.5 }} />
+                  <Typography variant="body2">Champions League</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box sx={{ width: 16, height: 16, bgcolor: '#ff6b00', mr: 1, borderRadius: 0.5 }} />
+                  <Typography variant="body2">Europa League</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box sx={{ width: 16, height: 16, bgcolor: '#d32f2f', mr: 1, borderRadius: 0.5 }} />
+                  <Typography variant="body2">Relégation</Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+
+        {/* Footer */}
+        <Box sx={{ mt: 4, textAlign: 'center' }}>
+          <Typography variant="caption" color="text.secondary">
+            ✨ Données en temps réel via API Football • Dernière mise à jour : {new Date().toLocaleString()}
           </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Box sx={{ width: 16, height: 16, bgcolor: '#00387b', mr: 1, borderRadius: 0.5 }} />
-                <Typography variant="body2">Champions League</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Box sx={{ width: 16, height: 16, bgcolor: '#ff6b00', mr: 1, borderRadius: 0.5 }} />
-                <Typography variant="body2">Europa League</Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Box sx={{ width: 16, height: 16, bgcolor: '#d32f2f', mr: 1, borderRadius: 0.5 }} />
-                <Typography variant="body2">Relégation</Typography>
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* Footer */}
-      <Box sx={{ mt: 4, textAlign: 'center' }}>
-        <Typography variant="caption" color="text.secondary">
-          ✨ Données en temps réel via API Football • Dernière mise à jour : {new Date().toLocaleString()}
-        </Typography>
-      </Box>
-    </Container>
+        </Box>
+      </Container>
+    </Layout>
   );
 }
