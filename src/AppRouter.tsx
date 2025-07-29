@@ -1,8 +1,8 @@
+// src/AppRouter.tsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LeagueProvider } from "./contexts/LeagueContext";
 import Home from "./pages/Home";
 import LeagueSelector from "./pages/LeagueSelector";
-import LeagueDashboard from "./pages/LeagueDashboard";
 import Teams from "./pages/Teams";
 import TeamDetails from "./pages/TeamDetails";
 import Matches from "./pages/Matches";
@@ -27,6 +27,35 @@ export default function AppRouter() {
                 
                 {/* Page de sélection des championnats */}
                 <Route path="/leagues" element={<LeagueSelector />} />
+                
+                {/* Routes globales (ancien système) */}
+                <Route path="/matches" element={
+                    <>
+                        <Header />
+                        <Matches />
+                    </>
+                } />
+                
+                <Route path="/teams" element={
+                    <>
+                        <Header />
+                        <Teams />
+                    </>
+                } />
+                
+                <Route path="/teams/:id" element={
+                    <>
+                        <Header />
+                        <TeamDetails />
+                    </>
+                } />
+                
+                <Route path="/match/:id" element={
+                    <>
+                        <Header />
+                        <MatchDetails />
+                    </>
+                } />
                 
                 {/* Dashboard du championnat - redirige vers standings */}
                 <Route path="/league/:leagueId" element={
@@ -57,7 +86,6 @@ export default function AppRouter() {
                 
                 <Route path="/league/:leagueId/matches" element={
                     <LeagueProvider>
-                        <Header />
                         <Matches />
                     </LeagueProvider>
                 } />

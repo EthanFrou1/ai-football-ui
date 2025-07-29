@@ -1,3 +1,4 @@
+// src/pages/Standings.tsx
 import React from 'react';
 import {
   Box,
@@ -28,6 +29,7 @@ import ErrorHandler from '../components/UI/ErrorHandler';
 import SeasonSelector from '../components/UI/SeasonSelector';
 import Layout from '../components/Layout/Layout';
 import BreadcrumbNavigation from '../components/UI/BreadcrumbNavigation';
+import { MatchesAccessCard, CompactMatchesButton } from '../components/Matches/MatchesAccessButton';
 import type { StandingEntry } from '../services/api/standingsService';
 
 export default function Standings() {
@@ -159,10 +161,10 @@ export default function Standings() {
   return (
     <Layout showBreadcrumb breadcrumbComponent={<BreadcrumbNavigation />}>
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        {/* En-tête avec sélecteur de saison */}
+        {/* En-tête avec sélecteur de saison et bouton compact */}
         <Box sx={{ mb: 4 }}>
           <Grid container spacing={3} alignItems="flex-start">
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12} md={6}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <EmojiEvents sx={{ color: '#ffd700', fontSize: 32, mr: 2 }} />
                 <Typography variant="h4" sx={{ fontWeight: 700 }}>
@@ -174,14 +176,24 @@ export default function Standings() {
               </Typography>
             </Grid>
             
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={3}>
               <SeasonSelector
                 selectedSeason={selectedSeason}
                 onSeasonChange={setSelectedSeason}
                 fullWidth
               />
             </Grid>
+
+            {/* Bouton compact Matchs */}
+            <Grid item xs={12} md={3} sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+              <CompactMatchesButton />
+            </Grid>
           </Grid>
+        </Box>
+
+        {/* Card d'accès aux matchs - Prominente */}
+        <Box sx={{ mb: 4 }}>
+          <MatchesAccessCard />
         </Box>
 
         {/* Stats rapides */}

@@ -1,240 +1,212 @@
 // src/components/Matches/MatchCard.tsx
-import { 
-  Card, 
-  CardContent, 
-  Typography, 
-  Avatar, 
-  Box, 
-  Chip, 
-  Stack, 
-  Divider,
-  CardActionArea,
-  IconButton
-} from "@mui/material";
-import { InfoOutlined, AccessTime, LocationOn } from '@mui/icons-material';
-import type { MatchData } from "../../services/api/matchesService";
-import { Link } from "react-router-dom";
+import React from 'react';
+import {
+  Card,
+  CardContent,
+  Grid,
+  Chip,
+  Avatar,
+  Typography,
+  Box
+} from '@mui/material';
+import {
+  FiberManualRecord as FiberManualRecordIcon,
+  CheckCircle as CheckCircleIcon,
+  AccessTime as AccessTimeIcon,
+  Sports as SportsIcon
+} from '@mui/icons-material';
+import type { MatchData } from '../../services/api/matchesService';
 
-interface MatchCardProps {
-  match: MatchData;
-  showLeagueInfo?: boolean;
-  showVenue?: boolean;
-  showDetailsButton?: boolean;
-  variant?: 'compact' | 'full';
-  onClick?: (match: MatchData) => void;
+interface LiveMatch extends MatchData {
+  elapsed?: number;
 }
 
-const MatchCard = ({ 
+interface MatchCardProps {
+  match: MatchData | LiveMatch;
+  onClick: () => void;
+  isLive?: boolean;
+}
+
+export const MatchCard: React.FC<MatchCardProps> = ({ 
   match, 
-  showLeagueInfo = true,
-  showVenue = true,
-  showDetailsButton = false,
-  variant = 'full',
-  onClick 
-}: MatchCardProps) => {
-
-  // Fonction pour formater la date selon le statut
-  const formatMatchDateTime = (timestamp: number, status: string): string => {
-    const date = new Date(timestamp * 1000);
-    const now = new Date();
-    
-    if (status === 'finished') {
-      const diffTime = now.getTime() - date.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 0) return "Aujourd'hui";
-      if (diffDays === 1) return "Hier";
-      if (diffDays <= 7) return `Il y a ${diffDays} jours`;
-      return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-    } else {
-      const diffTime = date.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 0) {
-        return `Aujourd'hui ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
-      }
-      if (diffDays === 1) {
-        return `Demain ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
-      }
-      if (diffDays <= 7) {
-        return `${date.toLocaleDateString('fr-FR', { weekday: 'long' })} ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
-      }
-      return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    }
-  };
-
-  // Fonction pour obtenir la couleur du statut
-  const getStatusColor = (status: string) => {
+  onClick, 
+  isLive = false 
+}) => {
+  const getStatusColor = (status: MatchData['status']) => {
     switch (status) {
-      case 'live': return 'error';
-      case 'finished': return 'success';
-      case 'scheduled': return 'primary';
-      case 'postponed': return 'warning';
-      case 'cancelled': return 'default';
-      default: return 'default';
+      case 'live': return '#ef4444';
+      case 'finished': return '#22c55e';
+      case 'scheduled': return '#3b82f6';
+      case 'postponed': return '#f59e0b';
+      case 'cancelled': return '#6b7280';
+      default: return '#6b7280';
     }
   };
 
-  // Fonction pour formater le score
-  const formatScore = (homeScore: number | null, awayScore: number | null, status: string): string => {
-    if (status === 'scheduled' || homeScore === null || awayScore === null) {
-      return status === 'live' ? 'En cours' : 'vs';
+  const getStatusIcon = (status: MatchData['status']) => {
+    switch (status) {
+      case 'live': return <FiberManualRecordIcon sx={{ fontSize: 12, animation: 'pulse 2s infinite' }} />;
+      case 'finished': return <CheckCircleIcon sx={{ fontSize: 16 }} />;
+      case 'scheduled': return <AccessTimeIcon sx={{ fontSize: 16 }} />;
+      default: return <SportsIcon sx={{ fontSize: 16 }} />;
     }
-    return `${homeScore} - ${awayScore}`;
   };
 
-  // Contenu principal du match
-  const cardContent = (
-    <CardContent sx={{ p: variant === 'compact' ? 2 : 3 }}>
-      {/* En-tête avec ligue et statut */}
-      {showLeagueInfo && (
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="caption" color="text.secondary">
-            {match.league.name} • {match.league.round}
-          </Typography>
-          <Chip 
-            label={match.statusLong} 
-            size="small" 
-            color={getStatusColor(match.status) as any}
-            variant={match.status === 'live' ? 'filled' : 'outlined'}
-          />
-        </Box>
-      )}
+  const getStatusText = (status: MatchData['status'], elapsed?: number) => {
+    switch (status) {
+      case 'live': 
+        const liveMatch = match as LiveMatch;
+        return `${elapsed || liveMatch.elapsed || 0}'`;
+      case 'finished': return 'FT';
+      case 'scheduled': return new Date(match.date).toLocaleTimeString('fr-FR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      case 'postponed': return 'REPORTÉ';
+      case 'cancelled': return 'ANNULÉ';
+      default: return status.toUpperCase();
+    }
+  };
 
-      {/* Teams et Score */}
-      <Stack direction="row" alignItems="center" spacing={2} mb={variant === 'compact' ? 1 : 2}>
-        {/* Équipe domicile */}
-        <Box display="flex" alignItems="center" flex={1}>
-          <Avatar
-            src={match.homeTeam.logo}
-            alt={match.homeTeam.name}
-            sx={{ 
-              width: variant === 'compact' ? 28 : 32, 
-              height: variant === 'compact' ? 28 : 32, 
-              mr: 1 
-            }}
-          />
-          <Typography 
-            variant={variant === 'compact' ? "body2" : "body1"} 
-            fontWeight="medium"
-            noWrap
-          >
-            {match.homeTeam.name}
-          </Typography>
-        </Box>
+  const getScoreDisplay = () => {
+    if (match.score.home !== null && match.score.away !== null) {
+      return `${match.score.home}-${match.score.away}`;
+    }
+    return 'vs';
+  };
 
-        {/* Score/Status */}
-        <Box textAlign="center" minWidth={80}>
-          {match.status === 'finished' ? (
-            <Chip 
-              label={formatScore(match.score.home, match.score.away, match.status)}
-              color={getStatusColor(match.status) as any}
-              variant="outlined"
-              sx={{ fontWeight: 'bold' }}
-            />
-          ) : match.status === 'live' ? (
-            <Chip 
-              label={`${match.score.home || 0} - ${match.score.away || 0}`}
-              color="error"
-              sx={{ fontWeight: 'bold', animation: 'pulse 2s infinite' }}
-            />
-          ) : (
-            <Typography variant="body2" color="text.secondary" fontWeight="medium">
-              {formatScore(match.score.home, match.score.away, match.status)}
-            </Typography>
-          )}
-        </Box>
+  const truncateName = (name: string, maxLength: number) => {
+    return name.length > maxLength ? name.substring(0, maxLength) + '...' : name;
+  };
 
-        {/* Équipe extérieur */}
-        <Box display="flex" alignItems="center" flex={1} justifyContent="flex-end">
-          <Typography 
-            variant={variant === 'compact' ? "body2" : "body1"} 
-            fontWeight="medium"
-            noWrap
-          >
-            {match.awayTeam.name}
-          </Typography>
-          <Avatar
-            src={match.awayTeam.logo}
-            alt={match.awayTeam.name}
-            sx={{ 
-              width: variant === 'compact' ? 28 : 32, 
-              height: variant === 'compact' ? 28 : 32, 
-              ml: 1 
-            }}
-          />
-        </Box>
-      </Stack>
-
-      {variant === 'full' && <Divider sx={{ my: 1 }} />}
-
-      {/* Informations supplémentaires */}
-      <Box 
-        display="flex" 
-        justifyContent="space-between" 
-        alignItems="center"
-        flexWrap="wrap"
-        gap={1}
-      >
-        <Box display="flex" alignItems="center" gap={0.5}>
-          <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
-          <Typography variant="body2" color="text.secondary">
-            {formatMatchDateTime(match.timestamp, match.status)}
-          </Typography>
-        </Box>
-
-        {showVenue && match.venue.name && (
-          <Box display="flex" alignItems="center" gap={0.5}>
-            <LocationOn sx={{ fontSize: 16, color: 'text.secondary' }} />
-            <Typography variant="body2" color="text.secondary" noWrap>
-              {match.venue.name}
-            </Typography>
-          </Box>
-        )}
-
-        {showDetailsButton && (
-          <IconButton 
-            component={Link} 
-            to={`/match/${match.id}`}
-            size="small"
-            sx={{ ml: 'auto' }}
-          >
-            <InfoOutlined fontSize="small" />
-          </IconButton>
-        )}
-      </Box>
-
-      {/* Temps écoulé pour les matchs en cours */}
-      {match.status === 'live' && match.elapsed && (
-        <Box mt={1}>
-          <Chip 
-            label={`${match.elapsed}'`} 
-            size="small" 
-            color="error" 
-            variant="filled"
-          />
-        </Box>
-      )}
-    </CardContent>
-  );
-
-  // Si on a une fonction onClick, rendre le card cliquable
-  if (onClick) {
-    return (
-      <Card sx={{ mb: 2, cursor: 'pointer' }}>
-        <CardActionArea onClick={() => onClick(match)}>
-          {cardContent}
-        </CardActionArea>
-      </Card>
-    );
-  }
-
-  // Card normal
   return (
-    <Card sx={{ mb: 2 }}>
-      {cardContent}
+    <Card 
+      sx={{ 
+        cursor: 'pointer',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        '&:hover': {
+          boxShadow: 6,
+          transform: 'translateY(-4px)',
+          backgroundColor: 'rgba(59, 130, 246, 0.02)'
+        },
+        mb: 1.5,
+        border: isLive ? `2px solid ${getStatusColor(match.status)}` : '1px solid rgba(0,0,0,0.12)',
+        position: 'relative',
+        overflow: 'visible'
+      }}
+      onClick={onClick}
+    >
+      {/* Indicateur live pulsant */}
+      {isLive && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: -8,
+            right: -8,
+            width: 16,
+            height: 16,
+            backgroundColor: '#ef4444',
+            borderRadius: '50%',
+            animation: 'pulse 2s infinite',
+            zIndex: 1,
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              borderRadius: '50%',
+              backgroundColor: '#ef4444',
+              animation: 'ping 2s infinite'
+            }
+          }}
+        />
+      )}
+
+      <CardContent sx={{ py: 2, px: 3, '&:last-child': { pb: 2 } }}>
+        <Grid container alignItems="center" spacing={2}>
+          {/* Équipes et score */}
+          <Grid item xs={8} sm={6}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Avatar 
+                src={match.homeTeam.logo} 
+                sx={{ width: 32, height: 32 }}
+                alt={match.homeTeam.name}
+              />
+              <Box sx={{ minWidth: { xs: '70px', sm: '100px' } }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    fontWeight: 600,
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                    lineHeight: 1.2
+                  }}
+                >
+                  {truncateName(match.homeTeam.name, window.innerWidth < 600 ? 10 : 15)}
+                </Typography>
+              </Box>
+              
+              <Chip
+                label={getScoreDisplay()}
+                variant={match.status === 'live' ? 'filled' : 'outlined'}
+                color={match.status === 'live' ? 'error' : 'default'}
+                sx={{ 
+                  fontWeight: 'bold', 
+                  minWidth: '60px',
+                  backgroundColor: match.status === 'live' ? 'rgba(239, 68, 68, 0.1)' : 'transparent'
+                }}
+              />
+              
+              <Box sx={{ minWidth: { xs: '70px', sm: '100px' }, textAlign: 'right' }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    fontWeight: 600,
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                    lineHeight: 1.2
+                  }}
+                >
+                  {truncateName(match.awayTeam.name, window.innerWidth < 600 ? 10 : 15)}
+                </Typography>
+              </Box>
+              <Avatar 
+                src={match.awayTeam.logo} 
+                sx={{ width: 32, height: 32 }}
+                alt={match.awayTeam.name}
+              />
+            </Box>
+          </Grid>
+
+          {/* Stade et round */}
+          <Grid item xs={0} sm={4} sx={{ display: { xs: 'none', sm: 'block' } }}>
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                📍 {match.venue.name ? truncateName(match.venue.name, 18) : 'Lieu TBD'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {match.league.round}
+              </Typography>
+            </Box>
+          </Grid>
+
+          {/* Status */}
+          <Grid item xs={4} sm={2}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+              <Chip
+                icon={getStatusIcon(match.status)}
+                label={getStatusText(match.status, (match as LiveMatch).elapsed)}
+                size="small"
+                sx={{
+                  backgroundColor: getStatusColor(match.status),
+                  color: 'white',
+                  fontWeight: 'bold',
+                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                  '& .MuiChip-icon': { color: 'white' }
+                }}
+              />
+            </Box>
+          </Grid>
+        </Grid>
+      </CardContent>
     </Card>
   );
 };
-
-export default MatchCard;
