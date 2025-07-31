@@ -1,501 +1,490 @@
-// src/pages/Matches.tsx
-import React, { useState, useEffect } from 'react';
+// src/pages/Matches.tsx - AVEC NAVIGATION VERS DÉTAILS
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Container,
-  Alert,
-  IconButton,
-  Paper,
-  Typography,
-  Skeleton,
   Box,
-  Card,
-  CardContent,
-  Avatar,
-  Chip,
+  Container,
+  Typography,
+  Tabs,
+  Tab,
+  Paper,
+  Button,
+  Alert,
+  Snackbar,
   Grid,
-  Collapse
+  Collapse,
+  IconButton,
+  Chip,
+  CircularProgress,
 } from '@mui/material';
-import { 
-  FiberManualRecord as FiberManualRecordIcon,
+import {
   Refresh as RefreshIcon,
-  Sports as SportsIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon
+  ExpandLess as ExpandLessIcon,
+  SportsSoccer as SoccerIcon,
+  Schedule as ScheduleIcon,
+  CheckCircle as CheckCircleIcon,
+  LiveTv as LiveIcon,
 } from '@mui/icons-material';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useSafeLeague } from '../contexts/LeagueContext';
+import { MatchCard } from '../components/Matches/MatchCard';
 import { 
-  fetchRecentMatches, 
-  fetchUpcomingMatches,
+  fetchLiveMatches, 
+  fetchUpcomingMatches, 
+  fetchRecentMatches,
   type MatchData 
 } from '../services/api/matchesService';
 
+// Types pour les onglets
 type TabValue = 'live' | 'upcoming' | 'recent';
 
-// Hook sécurisé pour utiliser le LeagueContext
-function useSafeLeague() {
-  try {
-    const { useLeague } = require('../contexts/LeagueContext');
-    return useLeague();
-  } catch {
-    return {
-      currentLeague: null,
-      isLoading: false
-    };
-  }
+// Interface pour les sections de championnats
+interface LeagueSection {
+  leagueId: number;
+  leagueName: string;
+  matches: MatchData[];
 }
 
-// Interface pour les matchs live (simulés en attendant l'API)
-interface LiveMatch extends MatchData {
-  elapsed?: number;
-}
-
-// Données simulées pour les matchs live
-const mockLiveMatches: LiveMatch[] = [
-  {
-    id: 999,
-    date: '2025-07-29T20:45:00+00:00',
-    timestamp: Date.now() / 1000,
-    status: 'live' as const,
-    statusLong: 'En cours - 2ème mi-temps',
-    elapsed: 78,
-    homeTeam: { id: 85, name: 'Paris Saint Germain', logo: 'https://media.api-sports.io/football/teams/85.png' },
-    awayTeam: { id: 80, name: 'Olympique Marseille', logo: 'https://media.api-sports.io/football/teams/80.png' },
-    score: { home: 2, away: 1 },
-    venue: { name: 'Parc des Princes', city: 'Paris' },
-    league: { id: 61, name: 'Ligue 1', round: 'Journée 15' }
-  },
-  {
-    id: 998,
-    date: '2025-07-29T18:00:00+00:00',
-    timestamp: Date.now() / 1000,
-    status: 'live' as const,
-    statusLong: 'En cours - 1ère mi-temps',
-    elapsed: 33,
-    homeTeam: { id: 541, name: 'Real Madrid', logo: 'https://media.api-sports.io/football/teams/541.png' },
-    awayTeam: { id: 529, name: 'Barcelona', logo: 'https://media.api-sports.io/football/teams/529.png' },
-    score: { home: 0, away: 1 },
-    venue: { name: 'Santiago Bernabéu', city: 'Madrid' },
-    league: { id: 140, name: 'La Liga', round: 'El Clasico' }
-  }
-];
-
-// Composant MatchCard amélioré avec grid layout
-const EnhancedMatchCard: React.FC<{ match: MatchData; onClick: () => void }> = ({ match, onClick }) => {
-  const getStatusColor = (status: MatchData['status']) => {
-    switch (status) {
-      case 'live': return '#ef4444';
-      case 'finished': return '#22c55e';
-      case 'scheduled': return '#3b82f6';
-      case 'postponed': return '#f59e0b';
-      case 'cancelled': return '#6b7280';
-      default: return '#6b7280';
-    }
-  };
-
-  const getStatusText = (status: MatchData['status'], elapsed?: number) => {
-    switch (status) {
-      case 'live': return `🔴 ${elapsed || 0}'`;
-      case 'finished': return 'FT';
-      case 'scheduled': return new Date(match.date).toLocaleTimeString('fr-FR', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-      case 'postponed': return 'REPORTÉ';
-      case 'cancelled': return 'ANNULÉ';
-      default: return status.toUpperCase();
-    }
-  };
-
-  const getScoreDisplay = () => {
-    if (match.score.home !== null && match.score.away !== null) {
-      return `${match.score.home}-${match.score.away}`;
-    }
-    return 'vs';
-  };
-
-  return (
-    <Card 
-      sx={{ 
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        '&:hover': {
-          boxShadow: 3,
-          transform: 'translateY(-1px)',
-          backgroundColor: 'rgba(59, 130, 246, 0.02)'
-        },
-        mb: 1,
-        borderLeft: match.status === 'live' ? `4px solid ${getStatusColor(match.status)}` : 'none'
-      }}
-      onClick={onClick}
-    >
-      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-        <Box sx={{ 
-          display: 'grid', 
-          gridTemplateColumns: '1fr 100px 1fr 120px',
-          gap: 2,
-          alignItems: 'center'
-        }}>
-          {/* Équipe domicile */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Avatar src={match.homeTeam.logo} sx={{ width: 28, height: 28 }} />
-            <Typography variant="body1" sx={{ 
-              fontWeight: 600,
-              fontSize: '0.95rem',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
-              {match.homeTeam.name}
-            </Typography>
-          </Box>
-
-          {/* Score */}
-          <Box sx={{ textAlign: 'center' }}>
-            <Chip
-              label={getScoreDisplay()}
-              variant={match.status === 'live' ? 'filled' : 'outlined'}
-              color={match.status === 'live' ? 'error' : 'default'}
-              sx={{ 
-                fontWeight: 'bold',
-                fontSize: '0.85rem',
-                minWidth: '60px'
-              }}
-            />
-          </Box>
-
-          {/* Équipe extérieur */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
-            <Typography variant="body1" sx={{ 
-              fontWeight: 600,
-              fontSize: '0.95rem',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              textAlign: 'right'
-            }}>
-              {match.awayTeam.name}
-            </Typography>
-            <Avatar src={match.awayTeam.logo} sx={{ width: 28, height: 28 }} />
-          </Box>
-
-          {/* Status/Temps */}
-          <Box sx={{ textAlign: 'center' }}>
-            <Chip
-              label={getStatusText(match.status, (match as LiveMatch).elapsed)}
-              size="small"
-              sx={{
-                backgroundColor: getStatusColor(match.status),
-                color: 'white',
-                fontWeight: 'bold',
-                fontSize: '0.75rem'
-              }}
-            />
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-};
-
-export default function Matches() {
-  const { currentLeague, isLoading: leagueLoading } = useSafeLeague();
-  const { leagueId } = useParams<{ leagueId: string }>();
+// ============= COMPOSANT PRINCIPAL =============
+function Matches() {
   const navigate = useNavigate();
   
-  const [activeTab, setActiveTab] = useState<TabValue>('live');
-  const [matches, setMatches] = useState<{ [key in TabValue]: MatchData[] }>({
-    live: [],
-    upcoming: [],
-    recent: []
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Context de ligue (peut être undefined si route directe /matches)
+  const leagueContext = useSafeLeague();
+  const selectedLeague = leagueContext.selectedLeague;
   
-  // État pour gérer l'expand/collapse des sections de championnats
-  const [expandedLeagues, setExpandedLeagues] = useState<{ [leagueId: number]: boolean }>({});
+  // États principaux
+  const [tabValue, setTabValue] = useState<TabValue>('live');
+  const [allMatches, setAllMatches] = useState<MatchData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  
+  // États pour l'interface
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set());
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fonction pour toggle l'état d'une section
-  const toggleLeagueExpanded = (leagueId: number) => {
-    setExpandedLeagues(prev => ({
-      ...prev,
-      [leagueId]: !prev[leagueId]
-    }));
+  // ============= NAVIGATION VERS DÉTAILS =============
+  const handleMatchClick = (match: MatchData) => {
+    console.log(`🎯 Navigation vers match ${match.id}`);
+    
+    if (selectedLeague) {
+      // Mode ligue spécifique → URL avec ligue
+      navigate(`/league/${selectedLeague.id}/match/${match.id}`);
+    } else {
+      // Mode global → URL simple
+      navigate(`/match/${match.id}`);
+    }
   };
 
-  // Déterminer la ligue à utiliser
-  const targetLeague = currentLeague || (leagueId ? { id: parseInt(leagueId), name: `Ligue ${leagueId}` } : null);
+  // Auto-refresh pour les matchs live (toutes les 30 secondes)
+  useEffect(() => {
+    if (tabValue !== 'live') return;
 
-  // Fonction pour charger les données selon l'onglet
-  const fetchMatches = async (tab: TabValue, showLoading = true) => {
-    if (showLoading) setLoading(true);
+    const interval = setInterval(() => {
+      handleRefresh(false); // Refresh silencieux
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [tabValue]);
+
+  // Charger les données selon l'onglet sélectionné - VERSION DEBUGGÉE
+  const fetchMatchesData = async (showLoader = true) => {
+    if (showLoader) setLoading(true);
     setError(null);
 
     try {
-      let data: MatchData[] = [];
+      let matches: MatchData[] = [];
 
-      switch (tab) {
-        case 'live':
-          // Pour le live, on utilise les données mockées
-          data = mockLiveMatches;
-          break;
-        case 'upcoming':
-          if (targetLeague) {
-            data = await fetchUpcomingMatches(targetLeague.id, 2023);
-          }
-          break;
-        case 'recent':
-          if (targetLeague) {
-            data = await fetchRecentMatches(targetLeague.id, 2023);
-          }
-          break;
+      console.log('🔍 Debug fetchMatchesData:', {
+        tabValue,
+        selectedLeague: selectedLeague ? {
+          id: selectedLeague.id,
+          name: selectedLeague.name,
+          idType: typeof selectedLeague.id
+        } : null
+      });
+
+      if (selectedLeague) {
+        // Mode ligue spécifique - VÉRIFICATIONS AJOUTÉES
+        console.log(`🔍 Mode ligue spécifique: ${selectedLeague.name} (ID: ${selectedLeague.id})`);
+        
+        // Vérifier que l'ID est bien un nombre
+        if (typeof selectedLeague.id !== 'number') {
+          throw new Error(`ID de ligue invalide: ${typeof selectedLeague.id} - ${selectedLeague.id}`);
+        }
+        
+        switch (tabValue) {
+          case 'live':
+            console.log('🔴 Appel fetchLiveMatches avec leagueId:', selectedLeague.id);
+            matches = await fetchLiveMatches(selectedLeague.id);
+            break;
+          case 'upcoming':
+            console.log('⏰ Appel fetchUpcomingMatches avec:', selectedLeague.id, 2023);
+            matches = await fetchUpcomingMatches(selectedLeague.id, 2023);
+            break;
+          case 'recent':
+            console.log('📅 Appel fetchRecentMatches avec:', selectedLeague.id, 2023);
+            matches = await fetchRecentMatches(selectedLeague.id, 2023);
+            break;
+        }
+      } else {
+        // Mode global (toutes les ligues principales)
+        console.log(`🌍 Mode global - onglet: ${tabValue}`);
+        
+        switch (tabValue) {
+          case 'live':
+            console.log('🔴 Appel fetchLiveMatches sans leagueId');
+            matches = await fetchLiveMatches(); // Pas de paramètre
+            break;
+          case 'upcoming':
+            console.log('⏰ Appel fetchUpcomingMatches pour ligues multiples');
+            // Récupérer les matchs à venir des principales ligues
+            const upcomingPromises = [61, 39, 78, 140, 135].map(leagueId => {
+              console.log(`  - Ligue ${leagueId}`);
+              return fetchUpcomingMatches(leagueId, 2023).catch(error => {
+                console.warn(`⚠️ Erreur ligue ${leagueId}:`, error);
+                return [];
+              });
+            });
+            const upcomingResults = await Promise.all(upcomingPromises);
+            matches = upcomingResults.flat();
+            break;
+          case 'recent':
+            console.log('📅 Appel fetchRecentMatches pour ligues multiples');
+            // Récupérer les matchs récents des principales ligues
+            const recentPromises = [61, 39, 78, 140, 135].map(leagueId => {
+              console.log(`  - Ligue ${leagueId}`);
+              return fetchRecentMatches(leagueId, 2023).catch(error => {
+                console.warn(`⚠️ Erreur ligue ${leagueId}:`, error);
+                return [];
+              });
+            });
+            const recentResults = await Promise.all(recentPromises);
+            matches = recentResults.flat();
+            break;
+        }
       }
 
-      setMatches(prev => ({ ...prev, [tab]: data }));
+      console.log(`✅ Total matchs chargés: ${matches.length}`);
+      setAllMatches(matches);
+      setLastUpdate(new Date());
+
+      // Auto-expand les sections avec des matchs live
+      if (tabValue === 'live') {
+        const liveLeagues = new Set(
+          matches
+            .filter(match => match.status === 'live')
+            .map(match => match.league.id)
+        );
+        setExpandedSections(liveLeagues);
+      }
+
     } catch (err) {
-      console.error(`Erreur lors du chargement des matchs ${tab}:`, err);
-      setError(`Erreur lors du chargement des matchs ${tab === 'live' ? 'en cours' : tab === 'upcoming' ? 'à venir' : 'récents'}`);
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
+      console.error('❌ Erreur détaillée:', {
+        error: err,
+        message: errorMessage,
+        tabValue,
+        selectedLeague
+      });
+      setError(errorMessage);
     } finally {
-      if (showLoading) setLoading(false);
+      if (showLoader) setLoading(false);
     }
   };
 
   // Charger les données au changement d'onglet
   useEffect(() => {
-    fetchMatches(activeTab);
-  }, [activeTab, targetLeague]);
+    fetchMatchesData();
+  }, [tabValue, selectedLeague]);
 
-  // Auto-refresh pour les matchs live
-  useEffect(() => {
-    if (activeTab === 'live') {
-      const interval = setInterval(() => {
-        fetchMatches('live', false);
-      }, 30000);
+  // Organiser les matchs par ligue
+  const leagueSections = useMemo(() => {
+    const sectionsMap = new Map<number, LeagueSection>();
 
-      return () => clearInterval(interval);
-    }
-  }, [activeTab]);
-
-  const handleMatchClick = (matchId: number) => {
-    if (leagueId) {
-      navigate(`/league/${leagueId}/match/${matchId}`);
-    } else {
-      navigate(`/match/${matchId}`);
-    }
-  };
-
-  // Grouper les matchs par championnat
-  const groupMatchesByLeague = (matchList: MatchData[]) => {
-    const grouped: { [leagueId: number]: { league: MatchData['league']; matches: MatchData[] } } = {};
-    
-    matchList.forEach(match => {
-      if (!grouped[match.league.id]) {
-        grouped[match.league.id] = {
-          league: match.league,
-          matches: []
-        };
+    allMatches.forEach(match => {
+      if (!sectionsMap.has(match.league.id)) {
+        sectionsMap.set(match.league.id, {
+          leagueId: match.league.id,
+          leagueName: match.league.name,
+          matches: [],
+        });
       }
-      grouped[match.league.id].matches.push(match);
+      sectionsMap.get(match.league.id)!.matches.push(match);
     });
+
+    // Convertir en array et trier par nombre de matchs (décroissant)
+    return Array.from(sectionsMap.values()).sort((a, b) => b.matches.length - a.matches.length);
+  }, [allMatches]);
+
+  // Gérer le refresh
+  const handleRefresh = async (showSnackbar = true) => {
+    setIsRefreshing(true);
+    await fetchMatchesData(false);
+    setIsRefreshing(false);
     
-    return grouped;
+    if (showSnackbar) {
+      setSnackbarOpen(true);
+    }
   };
 
-  const renderMatches = (matchList: MatchData[]) => {
-    if (loading) {
-      return Array(3).fill(0).map((_, index) => (
-        <Skeleton 
-          key={index} 
-          variant="rectangular" 
-          height={80} 
-          sx={{ mb: 2, borderRadius: 1 }}
+  // Gérer l'expansion/collapse des sections
+  const toggleSection = (leagueId: number) => {
+    const newExpanded = new Set(expandedSections);
+    if (newExpanded.has(leagueId)) {
+      newExpanded.delete(leagueId);
+    } else {
+      newExpanded.add(leagueId);
+    }
+    setExpandedSections(newExpanded);
+  };
+
+  // Calculer les statistiques pour les badges
+  const getTabStats = (tabType: TabValue) => {
+    switch (tabType) {
+      case 'live':
+        return allMatches.filter(match => match.status === 'live').length;
+      case 'upcoming':
+        return allMatches.filter(match => match.status === 'scheduled').length;
+      case 'recent':
+        return allMatches.filter(match => match.status === 'finished').length;
+      default:
+        return 0;
+    }
+  };
+
+  // Rendu de l'en-tête
+  const renderHeader = () => (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Box>
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 1 }}>
+          {selectedLeague ? `Matchs - ${selectedLeague.name}` : 'Matchs Football'}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Dernière mise à jour : {lastUpdate.toLocaleTimeString()}
+          {tabValue === 'live' && ' • Actualisation automatique'}
+        </Typography>
+      </Box>
+      
+      <Button
+        variant="outlined"
+        startIcon={isRefreshing ? <CircularProgress size={20} /> : <RefreshIcon />}
+        onClick={() => handleRefresh()}
+        disabled={isRefreshing}
+        sx={{ minWidth: 120 }}
+      >
+        {isRefreshing ? 'Actualisation...' : 'Actualiser'}
+      </Button>
+    </Box>
+  );
+
+  // Rendu des onglets
+  const renderTabs = () => (
+    <Paper sx={{ mb: 3 }}>
+      <Tabs 
+        value={tabValue} 
+        onChange={(_, newValue) => setTabValue(newValue)}
+        variant="fullWidth"
+        sx={{ 
+          '& .MuiTab-root': { 
+            fontWeight: 'bold',
+            textTransform: 'none',
+          }
+        }}
+      >
+        <Tab 
+          value="live" 
+          icon={<LiveIcon />}
+          label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              Live
+              {tabValue === 'live' && getTabStats('live') > 0 && (
+                <Chip 
+                  label={getTabStats('live')} 
+                  size="small" 
+                  color="error"
+                  sx={{ height: 20, fontSize: '0.75rem' }}
+                />
+              )}
+            </Box>
+          }
         />
-      ));
+        <Tab 
+          value="upcoming" 
+          icon={<ScheduleIcon />}
+          label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              À venir
+              {tabValue === 'upcoming' && getTabStats('upcoming') > 0 && (
+                <Chip 
+                  label={getTabStats('upcoming')} 
+                  size="small" 
+                  color="primary"
+                  sx={{ height: 20, fontSize: '0.75rem' }}
+                />
+              )}
+            </Box>
+          }
+        />
+        <Tab 
+          value="recent" 
+          icon={<CheckCircleIcon />}
+          label={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              Terminés
+              {tabValue === 'recent' && getTabStats('recent') > 0 && (
+                <Chip 
+                  label={getTabStats('recent')} 
+                  size="small" 
+                  color="success"
+                  sx={{ height: 20, fontSize: '0.75rem' }}
+                />
+              )}
+            </Box>
+          }
+        />
+      </Tabs>
+    </Paper>
+  );
+
+  // Rendu d'une section de ligue
+  const renderLeagueSection = (section: LeagueSection) => {
+    const isExpanded = expandedSections.has(section.leagueId);
+    const liveCount = section.matches.filter(match => match.status === 'live').length;
+
+    return (
+      <Paper key={section.leagueId} sx={{ mb: 2 }}>
+        {/* En-tête de section */}
+        <Box
+          sx={{
+            p: 2,
+            bgcolor: isExpanded ? 'primary.main' : 'grey.100',
+            color: isExpanded ? 'white' : 'text.primary',
+            cursor: 'pointer',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            '&:hover': {
+              bgcolor: isExpanded ? 'primary.dark' : 'grey.200',
+            },
+          }}
+          onClick={() => toggleSection(section.leagueId)}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <SoccerIcon />
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+              {section.leagueName}
+            </Typography>
+            <Chip 
+              label={`${section.matches.length} match${section.matches.length > 1 ? 's' : ''}`}
+              size="small"
+              sx={{ 
+                bgcolor: isExpanded ? 'rgba(255,255,255,0.2)' : 'primary.main',
+                color: isExpanded ? 'white' : 'white',
+              }}
+            />
+            {liveCount > 0 && (
+              <Chip 
+                label={`${liveCount} live`}
+                size="small"
+                color="error"
+                sx={{ color: 'white' }}
+              />
+            )}
+          </Box>
+          
+          <IconButton size="small" sx={{ color: 'inherit' }}>
+            {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          </IconButton>
+        </Box>
+
+        {/* Contenu de la section */}
+        <Collapse in={isExpanded}>
+          <Box sx={{ p: 2 }}>
+            {section.matches.length === 0 ? (
+              <Typography color="text.secondary" textAlign="center">
+                Aucun match {tabValue === 'live' ? 'en cours' : tabValue === 'upcoming' ? 'à venir' : 'récent'}
+              </Typography>
+            ) : (
+              <Grid container spacing={2}>
+                {section.matches.map(match => (
+                  <Grid item xs={12} md={6} lg={4} key={match.id}>
+                    <MatchCard 
+                      match={match} 
+                      onClick={() => handleMatchClick(match)}
+                      isLive={match.status === 'live'}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </Box>
+        </Collapse>
+      </Paper>
+    );
+  };
+
+  // Rendu du contenu principal
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+          <CircularProgress size={60} />
+        </Box>
+      );
     }
 
-    if (matchList.length === 0) {
-      const messages = {
-        live: 'Aucun match en cours actuellement',
-        upcoming: 'Aucun match à venir',
-        recent: 'Aucun match récent'
-      };
-      
+    if (error) {
+      return (
+        <Alert 
+          severity="error" 
+          action={
+            <Button color="inherit" size="small" onClick={() => fetchMatchesData()}>
+              Réessayer
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+      );
+    }
+
+    if (leagueSections.length === 0) {
       return (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
+          <SoccerIcon sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
           <Typography variant="h6" color="text.secondary">
-            {messages[activeTab]}
+            Aucun match {tabValue === 'live' ? 'en cours' : tabValue === 'upcoming' ? 'à venir' : 'récent'}
           </Typography>
         </Paper>
       );
     }
 
-    // Grouper par championnat
-    const groupedMatches = groupMatchesByLeague(matchList);
-    const leagueEntries = Object.entries(groupedMatches);
-
-    return leagueEntries.map(([leagueIdKey, { league, matches: leagueMatches }], index) => {
-      const leagueIdNum = parseInt(leagueIdKey);
-      const isExpanded = expandedLeagues[leagueIdNum] !== false; // Par défaut expanded
-
-      return (
-        <Box key={leagueIdKey} sx={{ mb: 4 }}>
-          {/* En-tête du championnat avec bouton collapse */}
-          <Paper 
-            elevation={1}
-            sx={{ 
-              mb: 2, 
-              backgroundColor: isExpanded ? 'primary.main' : 'grey.400',
-              color: 'white'
-            }}
-          >
-            <Box 
-              sx={{ 
-                p: 2,
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 2,
-                cursor: 'pointer',
-                '&:hover': {
-                  backgroundColor: isExpanded ? 'primary.dark' : 'grey.500'
-                },
-                transition: 'background-color 0.2s ease'
-              }}
-              onClick={() => toggleLeagueExpanded(leagueIdNum)}
-            >
-              <SportsIcon sx={{ fontSize: 24 }} />
-              <Typography variant="h6" sx={{ fontWeight: 'bold', flex: 1 }}>
-                {league.name}
-              </Typography>
-              <Chip 
-                label={`${leagueMatches.length} match${leagueMatches.length > 1 ? 's' : ''}`}
-                size="small"
-                sx={{ 
-                  backgroundColor: 'rgba(255,255,255,0.2)', 
-                  color: 'white',
-                  fontWeight: 'bold'
-                }}
-              />
-              {isExpanded ? (
-                <ExpandLessIcon sx={{ fontSize: 24 }} />
-              ) : (
-                <ExpandMoreIcon sx={{ fontSize: 24 }} />
-              )}
-            </Box>
-          </Paper>
-
-          {/* Matchs du championnat avec animation collapse */}
-          <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-            <Box>
-              {/* En-têtes des colonnes */}
-              <Box sx={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr 100px 1fr 120px',
-                gap: 2,
-                p: 2,
-                backgroundColor: 'grey.100',
-                borderRadius: 1,
-                mb: 1
-              }}>
-                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
-                  Domicile
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary', textAlign: 'center' }}>
-                  Score
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary', textAlign: 'right' }}>
-                  Extérieur
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary', textAlign: 'center' }}>
-                  Temps de jeu
-                </Typography>
-              </Box>
-
-              {/* Liste des matchs */}
-              {leagueMatches.map(match => (
-                <EnhancedMatchCard
-                  key={match.id}
-                  match={match}
-                  onClick={() => handleMatchClick(match.id)}
-                />
-              ))}
-            </Box>
-          </Collapse>
-        </Box>
-      );
-    });
+    return (
+      <Box>
+        {leagueSections.map(renderLeagueSection)}
+      </Box>
+    );
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
-      {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-          <SportsIcon sx={{ fontSize: 32, color: 'primary.main' }} />
-          <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-            🏆 Matchs de Football
-            {targetLeague && ` - ${targetLeague.name}`}
-          </Typography>
-        </Box>
-      </Box>
-
-      {/* Onglets simples */}
-      <Paper elevation={2} sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', borderBottom: 1, borderColor: 'divider' }}>
-          {[
-            { key: 'live' as TabValue, label: '🔴 En cours', count: matches.live.length },
-            { key: 'upcoming' as TabValue, label: '📅 À venir', count: matches.upcoming.length },
-            { key: 'recent' as TabValue, label: '✅ Terminés', count: matches.recent.length }
-          ].map(tab => (
-            <Box
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              sx={{
-                flex: 1,
-                p: 2,
-                textAlign: 'center',
-                cursor: 'pointer',
-                backgroundColor: activeTab === tab.key ? 'primary.main' : 'transparent',
-                color: activeTab === tab.key ? 'white' : 'text.primary',
-                '&:hover': {
-                  backgroundColor: activeTab === tab.key ? 'primary.dark' : 'grey.100'
-                }
-              }}
-            >
-              <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                {tab.label}
-                {tab.count > 0 && (
-                  <Chip 
-                    label={tab.count} 
-                    size="small" 
-                    sx={{ ml: 1, backgroundColor: 'rgba(255,255,255,0.2)' }}
-                  />
-                )}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
-      </Paper>
-
-      {/* Gestion d'erreurs */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Contenu */}
-      <Box>
-        {renderMatches(matches[activeTab])}
-      </Box>
-
-      {/* Styles pour les animations */}
-      <style>
-        {`
-          @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-          }
-        `}
-      </style>
+    <Container maxWidth="lg">
+      {renderHeader()}
+      {renderTabs()}
+      {renderContent()}
+      
+      {/* Snackbar pour confirmer le refresh */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        message="Données actualisées"
+      />
     </Container>
   );
 }
+
+// ============= EXPORT DEFAULT =============
+export default Matches;

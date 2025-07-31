@@ -1,3 +1,4 @@
+// src/contexts/LeagueContext.tsx - AVEC HOOK SÉCURISÉ
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 
@@ -14,6 +15,7 @@ export interface League {
 
 interface LeagueContextType {
   currentLeague: League | null;
+  selectedLeague: League | null; // Alias pour compatibilité
   setCurrentLeague: (league: League) => void;
   isLoading: boolean;
 }
@@ -136,6 +138,7 @@ export const LeagueProvider: React.FC<LeagueProviderProps> = ({ children }) => {
     <LeagueContext.Provider 
       value={{ 
         currentLeague, 
+        selectedLeague: currentLeague, // Alias pour compatibilité
         setCurrentLeague: handleSetCurrentLeague, 
         isLoading 
       }}
@@ -145,7 +148,7 @@ export const LeagueProvider: React.FC<LeagueProviderProps> = ({ children }) => {
   );
 };
 
-// Hook personnalisé
+// Hook standard (lancera une erreur si pas dans un provider)
 export const useLeague = (): LeagueContextType => {
   const context = useContext(LeagueContext);
   if (!context) {
@@ -154,8 +157,40 @@ export const useLeague = (): LeagueContextType => {
   return context;
 };
 
+// ============= HOOK SÉCURISÉ =============
+// Hook sécurisé qui ne lance pas d'erreur si pas dans un provider
+export const useSafeLeague = (): LeagueContextType => {
+  const context = useContext(LeagueContext);
+  
+  // Si pas de context, retourner des valeurs par défaut
+  if (!context) {
+    return {
+      currentLeague: null,
+      selectedLeague: null,
+      setCurrentLeague: () => {
+        console.warn('setCurrentLeague appelé en dehors d\'un LeagueProvider');
+      },
+      isLoading: false
+    };
+  }
+  
+  return context;
+};
+
 // Hook pour vérifier si on est dans le contexte d'une ligue
 export const useIsInLeague = (): boolean => {
-  const { currentLeague } = useLeague();
-  return currentLeague !== null;
+  const context = useContext(LeagueContext);
+  
+  // Si pas de context, on n'est pas dans une ligue
+  if (!context) {
+    return false;
+  }
+  
+  return context.currentLeague !== null;
+};
+
+// Hook pour obtenir l'ID de la ligue actuelle (null si pas dans une ligue)
+export const useLeagueId = (): number | null => {
+  const context = useContext(LeagueContext);
+  return context?.currentLeague?.id || null;
 };

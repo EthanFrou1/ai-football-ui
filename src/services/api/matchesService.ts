@@ -1,83 +1,14 @@
-// src/services/api/matchesService.ts
+// src/services/api/matchesService.ts - CORRECTION DES EXPORTS
 
-// Types pour l'API Football (structure des réponses de l'API)
-interface ApiMatch {
-  fixture: {
-    id: number;
-    referee: string | null;
-    timezone: string;
-    date: string;
-    timestamp: number;
-    periods: {
-      first: number | null;
-      second: number | null;
-    };
-    venue: {
-      id: number | null;
-      name: string | null;
-      city: string | null;
-    };
-    status: {
-      long: string;
-      short: string;
-      elapsed: number | null;
-    };
-  };
-  league: {
-    id: number;
-    name: string;
-    country: string;
-    logo: string;
-    flag: string;
-    season: number;
-    round: string;
-  };
-  teams: {
-    home: {
-      id: number;
-      name: string;
-      logo: string;
-      winner: boolean | null;
-    };
-    away: {
-      id: number;
-      name: string;
-      logo: string;
-      winner: boolean | null;
-    };
-  };
-  goals: {
-    home: number | null;
-    away: number | null;
-  };
-  score: {
-    halftime: {
-      home: number | null;
-      away: number | null;
-    };
-    fulltime: {
-      home: number | null;
-      away: number | null;
-    };
-    extratime: {
-      home: number | null;
-      away: number | null;
-    };
-    penalty: {
-      home: number | null;
-      away: number | null;
-    };
-  };
-}
+import { API_CONFIG } from './config';
 
-// Type pour nos données enrichies (ce qu'on utilise dans l'app)
+// ============= TYPES EXPORTS =============
+// Types pour les matchs - BIEN EXPORTÉS
 export interface MatchData {
   id: number;
-  date: string;
+  status: 'live' | 'scheduled' | 'finished' | 'postponed' | 'cancelled';
   timestamp: number;
-  status: 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled';
-  statusLong: string;
-  elapsed: number | null;
+  date: string; // Ajout pour compatibilité avec l'ancien code
   homeTeam: {
     id: number;
     name: string;
@@ -93,18 +24,19 @@ export interface MatchData {
     away: number | null;
   };
   venue: {
-    name: string | null;
-    city: string | null;
+    name: string;
+    city: string;
   };
   league: {
     id: number;
     name: string;
     round: string;
   };
+  elapsed?: number;
 }
 
-// Interface pour le cache
-interface MatchesCacheEntry {
+// Interface pour l'entrée de cache
+export interface MatchesCacheEntry {
   recent: MatchData[];
   upcoming: MatchData[];
   all: MatchData[];
@@ -113,113 +45,99 @@ interface MatchesCacheEntry {
   season: number;
 }
 
-// Cache intelligent - mêmes principes que teamsService
+// ============= CACHE SYSTEM =============
 const matchesCache = new Map<string, MatchesCacheEntry>();
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
-// Fonction pour transformer les données de l'API Football vers notre format
-function transformApiResponse(apiMatches: ApiMatch[]): MatchData[] {
-  return apiMatches.map(match => {
-    // Conversion du statut API vers notre statut simplifié
-    let status: MatchData['status'] = 'scheduled';
-    switch (match.fixture.status.short) {
-      case 'NS':
-      case 'TBD':
-        status = 'scheduled';
-        break;
-      case '1H':
-      case 'HT':
-      case '2H':
-      case 'ET':
-      case 'BT':
-        status = 'live';
-        break;
-      case 'FT':
-      case 'AET':
-      case 'PEN':
-        status = 'finished';
-        break;
-      case 'PST':
-        status = 'postponed';
-        break;
-      case 'CANC':
-        status = 'cancelled';
-        break;
-      default:
-        status = 'scheduled';
-    }
-
-    return {
-      id: match.fixture.id,
-      date: match.fixture.date,
-      timestamp: match.fixture.timestamp,
-      status,
-      statusLong: match.fixture.status.long,
-      elapsed: match.fixture.status.elapsed,
-      homeTeam: {
-        id: match.teams.home.id,
-        name: match.teams.home.name,
-        logo: match.teams.home.logo,
-      },
-      awayTeam: {
-        id: match.teams.away.id,
-        name: match.teams.away.name,
-        logo: match.teams.away.logo,
-      },
-      score: {
-        home: match.goals.home,
-        away: match.goals.away,
-      },
-      venue: {
-        name: match.fixture.venue.name,
-        city: match.fixture.venue.city,
-      },
-      league: {
-        id: match.league.id,
-        name: match.league.name,
-        round: match.league.round,
-      },
-    };
-  });
-}
-
-// Clé de cache unique par ligue/saison
 function getCacheKey(leagueId: number, season: number): string {
   return `matches_${leagueId}_${season}`;
 }
 
-// Vérifier si le cache est valide
 function isCacheValid(entry: MatchesCacheEntry): boolean {
   return Date.now() - entry.timestamp < CACHE_DURATION;
 }
 
-// Séparer les matchs en récents et à venir
+// ============= DATA TRANSFORMATION =============
+function transformApiResponse(apiMatches: any[]): MatchData[] {
+  return apiMatches.map(match => ({
+    id: match.fixture.id,
+    status: mapApiStatus(match.fixture.status.short),
+    timestamp: match.fixture.timestamp,
+    date: new Date(match.fixture.timestamp * 1000).toISOString(), // Pour compatibilité
+    homeTeam: {
+      id: match.teams.home.id,
+      name: match.teams.home.name,
+      logo: match.teams.home.logo,
+    },
+    awayTeam: {
+      id: match.teams.away.id,
+      name: match.teams.away.name,
+      logo: match.teams.away.logo,
+    },
+    score: {
+      home: match.goals.home,
+      away: match.goals.away,
+    },
+    venue: {
+      name: match.fixture.venue?.name || 'Stade non défini',
+      city: match.fixture.venue?.city || 'Ville non définie',
+    },
+    league: {
+      id: match.league.id,
+      name: match.league.name,
+      round: match.league.round,
+    },
+    elapsed: match.fixture.status.elapsed,
+  }));
+}
+
+function mapApiStatus(apiStatus: string): MatchData['status'] {
+  const statusMap: Record<string, MatchData['status']> = {
+    'NS': 'scheduled', // Not Started
+    'LIVE': 'live',
+    '1H': 'live',      // First Half
+    'HT': 'live',      // Half Time
+    '2H': 'live',      // Second Half
+    'ET': 'live',      // Extra Time
+    'P': 'live',       // Penalty
+    'FT': 'finished',  // Full Time
+    'AET': 'finished', // After Extra Time
+    'PEN': 'finished', // Penalty
+    'PST': 'postponed',
+    'CANC': 'cancelled',
+    'ABD': 'cancelled', // Abandoned
+    'AWD': 'finished',  // Technical Loss
+    'WO': 'finished',   // WalkOver
+  };
+  
+  return statusMap[apiStatus] || 'scheduled';
+}
+
 function categorizeMatches(matches: MatchData[]): { recent: MatchData[], upcoming: MatchData[] } {
-  const now = Date.now();
+  const now = Date.now() / 1000;
   const recent: MatchData[] = [];
   const upcoming: MatchData[] = [];
 
   matches.forEach(match => {
-    if (match.timestamp * 1000 < now && match.status === 'finished') {
+    if (match.timestamp < now && match.status === 'finished') {
       recent.push(match);
-    } else if (match.timestamp * 1000 >= now || match.status === 'scheduled') {
+    } else if (match.timestamp >= now || ['scheduled', 'live'].includes(match.status)) {
       upcoming.push(match);
     }
   });
 
-  // Trier : récents du plus récent au plus ancien, à venir du plus proche au plus lointain
   recent.sort((a, b) => b.timestamp - a.timestamp);
   upcoming.sort((a, b) => a.timestamp - b.timestamp);
 
   return { recent, upcoming };
 }
 
-// Fonction principale pour récupérer tous les matchs
+// ============= API FUNCTIONS =============
+
 export async function fetchMatches(leagueId: number, season: number): Promise<MatchesCacheEntry> {
   const cacheKey = getCacheKey(leagueId, season);
   const cachedEntry = matchesCache.get(cacheKey);
 
-  // Retourner le cache s'il est valide
   if (cachedEntry && isCacheValid(cachedEntry)) {
     console.log(`✅ Cache HIT pour les matchs: ${cacheKey}`);
     return cachedEntry;
@@ -228,8 +146,9 @@ export async function fetchMatches(leagueId: number, season: number): Promise<Ma
   console.log(`🔄 Cache MISS pour les matchs: ${cacheKey} - Appel API`);
 
   try {
-    // Appel API backend
-    const response = await fetch(`http://localhost:8000/api/matches?league=${leagueId}&season=${season}`);
+    const response = await fetch(
+      `${API_CONFIG.BASE_URL}/matches/recent?league=${leagueId}&season=${season}&limit=50`
+    );
     
     if (!response.ok) {
       throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
@@ -237,28 +156,22 @@ export async function fetchMatches(leagueId: number, season: number): Promise<Ma
 
     const data = await response.json();
     
-    // Vérifier la structure de la réponse API Football
     if (!data.response || !Array.isArray(data.response)) {
       throw new Error('Format de réponse API inattendu pour les matchs');
     }
 
-    // Transformer les données
     const allMatches = transformApiResponse(data.response);
-    
-    // Catégoriser les matchs
     const { recent, upcoming } = categorizeMatches(allMatches);
 
-    // Créer l'entrée de cache
     const cacheEntry: MatchesCacheEntry = {
-      recent: recent.slice(0, 10), // Limiter à 10 matchs récents
-      upcoming: upcoming.slice(0, 10), // Limiter à 10 matchs à venir
+      recent: recent.slice(0, 10),
+      upcoming: upcoming.slice(0, 10),
       all: allMatches,
       timestamp: Date.now(),
       leagueId,
       season,
     };
 
-    // Sauvegarder dans le cache
     matchesCache.set(cacheKey, cacheEntry);
     
     console.log(`✅ Matchs mis en cache: ${allMatches.length} matchs (${recent.length} récents, ${upcoming.length} à venir)`);
@@ -266,30 +179,176 @@ export async function fetchMatches(leagueId: number, season: number): Promise<Ma
     return cacheEntry;
 
   } catch (error) {
-    console.error('Erreur lors de la récupération des matchs:', error);
+    console.error('❌ Erreur lors de la récupération des matchs:', error);
     throw error;
   }
 }
 
-// Récupérer seulement les matchs récents
 export async function fetchRecentMatches(leagueId: number, season: number): Promise<MatchData[]> {
-  const matches = await fetchMatches(leagueId, season);
-  return matches.recent;
+  try {
+    // Vérifier les types des paramètres
+    if (typeof leagueId !== 'number' || typeof season !== 'number') {
+      throw new Error(`Paramètres invalides: leagueId=${typeof leagueId}, season=${typeof season}`);
+    }
+    
+    const url = `${API_CONFIG.BASE_URL}/matches/recent?league=${leagueId}&season=${season}&limit=10`;
+    console.log(`📅 Appel API récents: ${url}`);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Erreur API récents: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.response) {
+      return [];
+    }
+    
+    const recentMatches = transformApiResponse(data.response);
+    console.log(`✅ ${recentMatches.length} matchs récents récupérés`);
+    
+    return recentMatches;
+    
+  } catch (error) {
+    console.error('❌ Erreur matchs récents:', error);
+    return [];
+  }
 }
 
-// Récupérer seulement les matchs à venir
 export async function fetchUpcomingMatches(leagueId: number, season: number): Promise<MatchData[]> {
-  const matches = await fetchMatches(leagueId, season);
-  return matches.upcoming;
+  try {
+    // Vérifier les types des paramètres
+    if (typeof leagueId !== 'number' || typeof season !== 'number') {
+      throw new Error(`Paramètres invalides: leagueId=${typeof leagueId}, season=${typeof season}`);
+    }
+    
+    const url = `${API_CONFIG.BASE_URL}/matches/upcoming?league=${leagueId}&season=${season}&limit=10`;
+    console.log(`⏰ Appel API à venir: ${url}`);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Erreur API à venir: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.response) {
+      return [];
+    }
+    
+    const upcomingMatches = transformApiResponse(data.response);
+    console.log(`✅ ${upcomingMatches.length} matchs à venir récupérés`);
+    
+    return upcomingMatches;
+    
+  } catch (error) {
+    console.error('❌ Erreur matchs à venir:', error);
+    return [];
+  }
 }
 
-// Récupérer tous les matchs
+export async function fetchLiveMatches(leagueId?: number): Promise<MatchData[]> {
+  try {
+    // Construire l'URL correctement
+    let url = `${API_CONFIG.BASE_URL}/matches/live`;
+    
+    // Ajouter le paramètre de ligue si spécifié
+    if (leagueId && typeof leagueId === 'number') {
+      url += `?league=${leagueId}`;
+    }
+    
+    console.log(`🔴 Appel API live: ${url}`);
+      
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Erreur API live: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Vérifier la structure de la réponse
+    if (!data.response || !Array.isArray(data.response)) {
+      console.warn('⚠️ Réponse API live vide ou incorrecte');
+      return [];
+    }
+    
+    // Transformer les données
+    const liveMatches = transformApiResponse(data.response);
+    
+    console.log(`✅ ${liveMatches.length} matchs live récupérés`);
+    
+    return liveMatches;
+    
+  } catch (error) {
+    console.error('❌ Erreur matchs live:', error);
+    
+    // Retourner un tableau vide au lieu de planter
+    return [];
+  }
+}
+
+function debugApiCall(endpoint: string, params: any) {
+  console.log('🔍 Debug API Call:', {
+    endpoint,
+    params,
+    paramsTypes: Object.entries(params).map(([key, value]) => [key, typeof value])
+  });
+}
+
 export async function fetchAllMatches(leagueId: number, season: number): Promise<MatchData[]> {
   const matches = await fetchMatches(leagueId, season);
   return matches.all;
 }
 
-// Utilitaires de cache (pour debug)
+export async function fetchMatchById(matchId: number): Promise<MatchData | null> {
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/matches/${matchId}`);
+    
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error(`Erreur API match: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const matches = transformApiResponse(data.response || []);
+    return matches[0] || null;
+  } catch (error) {
+    console.error(`❌ Erreur match ${matchId}:`, error);
+    return null;
+  }
+}
+
+// ============= UTILITY FUNCTIONS =============
+
+export function filterMatchesByTeam(matches: MatchData[], teamId: number): MatchData[] {
+  return matches.filter(match => 
+    match.homeTeam.id === teamId || match.awayTeam.id === teamId
+  );
+}
+
+export function filterMatchesByDateRange(
+  matches: MatchData[], 
+  startDate: Date, 
+  endDate: Date
+): MatchData[] {
+  const start = startDate.getTime() / 1000;
+  const end = endDate.getTime() / 1000;
+  
+  return matches.filter(match => 
+    match.timestamp >= start && match.timestamp <= end
+  );
+}
+
+export function filterMatchesByStatus(matches: MatchData[], status: MatchData['status']): MatchData[] {
+  return matches.filter(match => match.status === status);
+}
+
+// ============= CACHE UTILITIES =============
+
 export function clearMatchesCache(): void {
   matchesCache.clear();
   console.log('🗑️ Cache des matchs vidé');
@@ -305,36 +364,24 @@ export function getMatchesCacheInfo(): string {
   return entries.length > 0 ? entries.join('\n') : 'Cache vide';
 }
 
-// Fonction helper pour filtrer les matchs par équipe
-export function filterMatchesByTeam(matches: MatchData[], teamId: number): MatchData[] {
-  return matches.filter(match => 
-    match.homeTeam.id === teamId || match.awayTeam.id === teamId
-  );
-}
-
-// Fonction helper pour filtrer les matchs par date
-export function filterMatchesByDateRange(
-  matches: MatchData[], 
-  startDate: Date, 
-  endDate: Date
-): MatchData[] {
-  const start = startDate.getTime() / 1000;
-  const end = endDate.getTime() / 1000;
-  
-  return matches.filter(match => 
-    match.timestamp >= start && match.timestamp <= end
-  );
-}
+// ============= SERVICE CLASS =============
 
 class MatchesService {
   fetchMatches = fetchMatches;
   fetchRecentMatches = fetchRecentMatches;
   fetchUpcomingMatches = fetchUpcomingMatches;
+  fetchLiveMatches = fetchLiveMatches;
   fetchAllMatches = fetchAllMatches;
+  fetchMatchById = fetchMatchById;
+  
   clearCache = clearMatchesCache;
   getCacheInfo = getMatchesCacheInfo;
   filterByTeam = filterMatchesByTeam;
   filterByDate = filterMatchesByDateRange;
+  filterByStatus = filterMatchesByStatus;
 }
 
 export const matchesService = new MatchesService();
+
+// ============= DEFAULT EXPORT =============
+export default matchesService;
