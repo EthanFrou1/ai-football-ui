@@ -18,7 +18,5 @@ export {
   searchTeams,
   sortTeams,
   filterTeamsByQualification,
-  getTeamsStats,
-  clearTeamsCache,
-  getTeamsCacheInfo
+  getTeamsStats
 } from './teamsService';

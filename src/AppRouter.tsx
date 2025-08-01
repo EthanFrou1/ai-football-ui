@@ -38,14 +38,12 @@ export default function AppRouter() {
                 
                 <Route path="/teams" element={
                     <>
-                        <Header />
                         <Teams />
                     </>
                 } />
                 
                 <Route path="/teams/:id" element={
                     <>
-                        <Header />
                         <TeamDetails />
                     </>
                 } />

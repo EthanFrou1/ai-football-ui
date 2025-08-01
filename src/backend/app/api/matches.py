@@ -1,4 +1,4 @@
-# backend/app/api/matches.py - VERSION COMPLÈTE AVEC DÉTAILS DE MATCH
+# backend/app/api/matches.py - VERSION CORRIGÉE
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 import requests
@@ -53,14 +53,191 @@ def filter_matches_by_date(matches, days_back=30, days_forward=30):
         'live': live_matches
     }
 
+# ============= ENDPOINTS SPÉCIFIQUES - ORDRE CRITIQUE ! =============
+# ⚠️ CRITICAL: Ces endpoints DOIVENT être définis AVANT l'endpoint avec {match_id}
+# Sinon FastAPI confond "live", "recent", "upcoming" avec des IDs de match
+
+@router.get("/matches/live")
+async def get_live_matches(
+    league: Optional[int] = Query(None, description="ID de la ligue (optionnel)")
+):
+    """
+    Récupérer les matchs en direct (FONCTIONNE EN PLAN GRATUIT)
+    ⚠️ ENDPOINT DÉFINI EN PREMIER pour éviter la confusion avec /matches/{match_id}
+    """
+    try:
+        print(f"🔴 Endpoint live appelé avec league={league}")
+        
+        # Le paramètre 'live=all' fonctionne en plan gratuit
+        api_params = {"live": "all"}
+        
+        # Filtrer par ligue si spécifié
+        if league and isinstance(league, int):
+            api_params["league"] = league
+            print(f"🎯 Filtrage par ligue: {league}")
+        
+        print(f"📡 Appel API live avec params: {api_params}")
+        
+        response = requests.get(
+            f"{BASE_URL}/fixtures",
+            headers=headers,
+            params=api_params,
+            timeout=30
+        )
+        
+        print(f"📊 Réponse API: status={response.status_code}")
+        
+        if response.status_code != 200:
+            print(f"❌ Erreur API: {response.status_code} - {response.text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Erreur API Football: {response.status_code}"
+            )
+        
+        data = response.json()
+        
+        print(f"✅ Matchs live récupérés: {len(data.get('response', []))}")
+        
+        return data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Erreur récupération matchs live: {e}")
+        # Retourner une réponse vide au lieu de lever une exception
+        return {
+            "get": "fixtures",
+            "parameters": {"live": "all"},
+            "errors": {},
+            "results": 0,
+            "response": []
+        }
+
+@router.get("/matches/recent")
+async def get_recent_matches(
+    league: int = Query(..., description="ID de la ligue"),
+    season: int = Query(2023, description="Année de la saison"),
+    limit: int = Query(10, description="Nombre max de matchs")
+):
+    """
+    Récupérer les matchs récents (CONTOURNEMENT PLAN GRATUIT)
+    ⚠️ ENDPOINT DÉFINI AVANT /matches/{match_id} pour éviter la confusion
+    """
+    try:
+        print(f"📅 Récupération matchs récents: league={league}, season={season}")
+        
+        # Récupérer tous les matchs de la saison (seul paramètre disponible)
+        api_params = {
+            "league": league,
+            "season": season
+        }
+        
+        response = requests.get(
+            f"{BASE_URL}/fixtures",
+            headers=headers,
+            params=api_params,
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Erreur API Football: {response.status_code}"
+            )
+        
+        data = response.json()
+        
+        if "response" not in data:
+            return {"response": [], "get": "fixtures", "parameters": api_params}
+        
+        # Filtrer les matchs côté serveur
+        filtered = filter_matches_by_date(data["response"])
+        
+        print(f"✅ Matchs récents filtrés: {len(filtered['recent'][:limit])}")
+        
+        # Retourner seulement les matchs récents
+        return {
+            "get": "fixtures",
+            "parameters": api_params,
+            "errors": data.get("errors", {}),
+            "results": len(filtered['recent'][:limit]),
+            "response": filtered['recent'][:limit]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Erreur récupération matchs récents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/matches/upcoming")
+async def get_upcoming_matches(
+    league: int = Query(..., description="ID de la ligue"),
+    season: int = Query(2023, description="Année de la saison"),
+    limit: int = Query(10, description="Nombre max de matchs")
+):
+    """
+    Récupérer les matchs à venir (CONTOURNEMENT PLAN GRATUIT)
+    ⚠️ ENDPOINT DÉFINI AVANT /matches/{match_id} pour éviter la confusion
+    """
+    try:
+        print(f"⏰ Récupération matchs à venir: league={league}, season={season}")
+        
+        api_params = {
+            "league": league,
+            "season": season
+        }
+        
+        response = requests.get(
+            f"{BASE_URL}/fixtures",
+            headers=headers,
+            params=api_params,
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Erreur API Football: {response.status_code}"
+            )
+        
+        data = response.json()
+        
+        if "response" not in data:
+            return {"response": [], "get": "fixtures", "parameters": api_params}
+        
+        # Filtrer les matchs côté serveur
+        filtered = filter_matches_by_date(data["response"])
+        
+        print(f"✅ Matchs à venir filtrés: {len(filtered['upcoming'][:limit])}")
+        
+        # Retourner seulement les matchs à venir
+        return {
+            "get": "fixtures",
+            "parameters": api_params,
+            "errors": data.get("errors", {}),
+            "results": len(filtered['upcoming'][:limit]),
+            "response": filtered['upcoming'][:limit]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Erreur récupération matchs à venir: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ============= ENDPOINT POUR DÉTAILS D'UN MATCH SPÉCIFIQUE =============
+# ⚠️ IMPORTANT: Défini APRÈS l'endpoint /matches/live
 
 @router.get("/matches/{match_id}")
 async def get_match_details(match_id: int):
     """
     Récupère les détails d'un match spécifique par son ID
+    ⚠️ Défini après /matches/live pour éviter la confusion
     """
     try:
+        print(f"🎯 Récupération détails match ID: {match_id}")
+        
         # Appel à l'API Football pour récupérer un match spécifique
         api_params = {"id": match_id}
         
@@ -99,145 +276,7 @@ async def get_match_details(match_id: int):
             detail=f"Erreur lors de la récupération du match: {str(e)}"
         )
 
-# ============= AUTRES ENDPOINTS =============
-
-@router.get("/matches/recent")
-async def get_recent_matches(
-    league: int = Query(..., description="ID de la ligue"),
-    season: int = Query(2023, description="Année de la saison"),
-    limit: int = Query(10, description="Nombre max de matchs")
-):
-    """
-    Récupérer les matchs récents (CONTOURNEMENT PLAN GRATUIT)
-    Stratégie : Récupérer tous les matchs puis filtrer côté serveur
-    """
-    try:
-        # Récupérer tous les matchs de la saison (seul paramètre disponible)
-        api_params = {
-            "league": league,
-            "season": season
-        }
-        
-        response = requests.get(
-            f"{BASE_URL}/fixtures",
-            headers=headers,
-            params=api_params,
-            timeout=30
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Erreur API Football: {response.status_code}"
-            )
-        
-        data = response.json()
-        
-        if "response" not in data:
-            return {"response": [], "get": "fixtures", "parameters": api_params}
-        
-        # Filtrer les matchs côté serveur
-        filtered = filter_matches_by_date(data["response"])
-        
-        # Retourner seulement les matchs récents
-        return {
-            "get": "fixtures",
-            "parameters": api_params,
-            "errors": data.get("errors", {}),
-            "results": len(filtered['recent'][:limit]),
-            "response": filtered['recent'][:limit]
-        }
-        
-    except Exception as e:
-        print(f"❌ Erreur récupération matchs récents: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/matches/upcoming")
-async def get_upcoming_matches(
-    league: int = Query(..., description="ID de la ligue"),
-    season: int = Query(2023, description="Année de la saison"),
-    limit: int = Query(10, description="Nombre max de matchs")
-):
-    """
-    Récupérer les matchs à venir (CONTOURNEMENT PLAN GRATUIT)
-    """
-    try:
-        api_params = {
-            "league": league,
-            "season": season
-        }
-        
-        response = requests.get(
-            f"{BASE_URL}/fixtures",
-            headers=headers,
-            params=api_params,
-            timeout=30
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Erreur API Football: {response.status_code}"
-            )
-        
-        data = response.json()
-        
-        if "response" not in data:
-            return {"response": [], "get": "fixtures", "parameters": api_params}
-        
-        # Filtrer les matchs côté serveur
-        filtered = filter_matches_by_date(data["response"])
-        
-        # Retourner seulement les matchs à venir
-        return {
-            "get": "fixtures",
-            "parameters": api_params,
-            "errors": data.get("errors", {}),
-            "results": len(filtered['upcoming'][:limit]),
-            "response": filtered['upcoming'][:limit]
-        }
-        
-    except Exception as e:
-        print(f"❌ Erreur récupération matchs à venir: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/matches/live")
-async def get_live_matches(
-    league: Optional[int] = Query(None, description="ID de la ligue (optionnel)")
-):
-    """
-    Récupérer les matchs en direct (FONCTIONNE EN PLAN GRATUIT)
-    """
-    try:
-        # Le paramètre 'live=all' fonctionne en plan gratuit
-        api_params = {"live": "all"}
-        
-        # Filtrer par ligue si spécifié
-        if league:
-            api_params["league"] = league
-        
-        response = requests.get(
-            f"{BASE_URL}/fixtures",
-            headers=headers,
-            params=api_params,
-            timeout=30
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Erreur API Football: {response.status_code}"
-            )
-        
-        data = response.json()
-        
-        print(f"✅ Matchs live récupérés: {len(data.get('response', []))}")
-        
-        return data
-        
-    except Exception as e:
-        print(f"❌ Erreur récupération matchs live: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# ============= AUTRES ENDPOINTS UTILITAIRES =============
 
 @router.get("/matches/by-date")
 async def get_matches_by_date(
@@ -247,8 +286,11 @@ async def get_matches_by_date(
 ):
     """
     Récupérer les matchs d'une date spécifique (ALTERNATIVE PLAN GRATUIT)
+    ⚠️ ENDPOINT DÉFINI AVANT /matches/{match_id} pour éviter la confusion
     """
     try:
+        print(f"📅 Récupération matchs du {date}: league={league}")
+        
         # Utiliser le paramètre 'date' qui fonctionne en plan gratuit
         api_params = {
             "league": league,
@@ -275,11 +317,11 @@ async def get_matches_by_date(
         
         return data
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ Erreur récupération matchs par date: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-# ============= ENDPOINT GÉNÉRAL (OPTIMISÉ PLAN GRATUIT) =============
 
 @router.get("/matches")
 async def get_matches_optimized(
@@ -290,8 +332,11 @@ async def get_matches_optimized(
     """
     Endpoint optimisé pour le plan gratuit
     Récupère tous les matchs puis filtre côté serveur
+    ⚠️ ENDPOINT DÉFINI AVANT /matches/{match_id} pour éviter la confusion
     """
     try:
+        print(f"🎯 Récupération matchs optimisés: league={league}, filter={filter_type}")
+        
         # UN SEUL APPEL API pour récupérer tous les matchs
         api_params = {
             "league": league,
@@ -344,6 +389,8 @@ async def get_matches_optimized(
             "filter_applied": filter_type
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ Erreur récupération matchs: {e}")
         raise HTTPException(status_code=500, detail=str(e))

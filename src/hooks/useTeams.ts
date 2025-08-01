@@ -1,11 +1,10 @@
-// src/hooks/useTeams.ts
+// src/hooks/useTeams.ts - VERSION CORRIGÉE
 import { useState, useEffect, useMemo } from 'react';
 import { 
   fetchTeamsFromStandings,
   searchTeams,
   sortTeams,
   filterTeamsByQualification,
-  getTeamsStats,
   type TeamFromStandings
 } from '../services/api/teamsService';
 import { useDebouncedValue } from './useDebouncedValue';
@@ -52,6 +51,42 @@ interface UseTeamsResult {
   
   // Actions
   refetch: () => Promise<void>;
+}
+
+// Fonction locale pour calculer les statistiques (remplace getTeamsStats)
+function calculateTeamsStats(teams: TeamFromStandings[]) {
+  if (teams.length === 0) {
+    return {
+      total: 0,
+      championsLeague: 0,
+      europaLeague: 0,
+      relegation: 0,
+      averagePoints: 0,
+      topScorer: null,
+      bestDefense: null,
+    };
+  }
+
+  const championsLeague = teams.filter(t => t.position <= 3).length;
+  const europaLeague = teams.filter(t => t.position >= 4 && t.position <= 6).length;
+  const relegation = teams.filter(t => t.position >= teams.length - 2).length;
+  const averagePoints = teams.reduce((sum, t) => sum + t.points, 0) / teams.length;
+  
+  const topScorer = teams.reduce((top, team) => 
+    team.goals_for > (top?.goals_for || 0) ? team : top, teams[0]);
+  
+  const bestDefense = teams.reduce((best, team) => 
+    team.goals_against < (best?.goals_against || Infinity) ? team : best, teams[0]);
+
+  return {
+    total: teams.length,
+    championsLeague,
+    europaLeague,
+    relegation,
+    averagePoints: Math.round(averagePoints * 10) / 10,
+    topScorer,
+    bestDefense,
+  };
 }
 
 export function useTeams(leagueId: number, season: number): UseTeamsResult {
@@ -126,15 +161,7 @@ export function useTeams(leagueId: number, season: number): UseTeamsResult {
 
   // Calculer les statistiques
   const stats = useMemo(() => {
-    const baseStats = allTeams.length > 0 ? getTeamsStats(allTeams) : {
-      total: 0,
-      championsLeague: 0,
-      europaLeague: 0,
-      relegation: 0,
-      averagePoints: 0,
-      topScorer: null,
-      bestDefense: null,
-    };
+    const baseStats = calculateTeamsStats(allTeams);
 
     return {
       ...baseStats,
