@@ -15,8 +15,10 @@ headers = {
 }
 
 async def make_api_request(endpoint: str, params: dict):
-    """Fonction utilitaire pour les appels API"""
+    """Fonction utilitaire pour les appels API avec retry automatique - AMÉLIORÉE"""
     try:
+        print(f"🔍 API Call: {endpoint} avec params: {params}")
+        
         response = requests.get(
             f"{BASE_URL}/{endpoint}",
             headers=headers,
@@ -24,12 +26,22 @@ async def make_api_request(endpoint: str, params: dict):
             timeout=30
         )
         
+        print(f"📡 Response status: {response.status_code}")
+        
         if response.status_code == 200:
-            return response.json()
+            data = response.json()
+            print(f"✅ Response OK - {len(data.get('response', []))} items")
+            return data
+        elif response.status_code == 429:
+            print("⚠️ Rate limit atteint - attendre")
+            raise HTTPException(status_code=429, detail="Rate limit API atteint")
         else:
             print(f"❌ Erreur API {endpoint}: {response.status_code}")
             return {"response": []}
             
+    except requests.exceptions.Timeout:
+        print(f"⏰ Timeout API {endpoint}")
+        return {"response": []}
     except Exception as e:
         print(f"❌ Exception API {endpoint}: {e}")
         return {"response": []}
@@ -319,33 +331,67 @@ async def get_team_players_detailed(
 @router.get("/{team_id}/complete")
 async def get_team_complete_profile(
     team_id: int,
-    league: int = Query(..., description="ID de la ligue"), 
+    league: int = Query(61, description="ID de la ligue"), # DÉFAUT AJOUTÉ
     season: int = Query(2023, description="Année de la saison")
 ):
     """
-    Endpoint combiné pour récupérer TOUTES les informations d'une équipe
-    Combine les détails de base + statistiques + joueurs
+    ENDPOINT CORRIGÉ - Récupère la position RÉELLE depuis les standings
     """
     try:
-        print(f"🔥 Profil complet équipe {team_id}")
+        print(f"🔥 Profil complet équipe {team_id} - Ligue {league}, Saison {season}")
         
         # 1. Détails de base de l'équipe
         team_data = await make_api_request("teams", {"id": team_id})
         
         if not team_data.get("response"):
-            raise HTTPException(status_code=404, detail="Équipe non trouvée")
+            print(f"❌ Équipe {team_id} non trouvée dans l'API")
+            raise HTTPException(status_code=404, detail=f"Équipe {team_id} non trouvée")
         
         team_info = team_data["response"][0]
         team = team_info["team"]
-        venue = team_info["venue"]
+        venue = team_info.get("venue", {})
         
-        # 2. Statistiques complètes (réutiliser l'endpoint existant)
+        print(f"✅ Équipe trouvée: {team['name']}")
+        
+        # 2. CLASSEMENT pour obtenir la VRAIE position - NOUVELLE LOGIQUE
+        print(f"🏆 Récupération classement ligue {league}")
+        standings_data = await make_api_request("standings", {
+            "league": league,
+            "season": season
+        })
+        
+        current_position = None
+        standing_stats = {}
+        
+        if standings_data.get("response"):
+            for league_standing in standings_data["response"]:
+                for standing_group in league_standing.get("league", {}).get("standings", []):
+                    for team_standing in standing_group:
+                        if team_standing["team"]["id"] == team_id:
+                            current_position = team_standing["rank"]
+                            standing_stats = {
+                                "position": team_standing["rank"],
+                                "points": team_standing["points"],
+                                "matches_played": team_standing["all"]["played"],
+                                "wins": team_standing["all"]["win"],
+                                "draws": team_standing["all"]["draw"],
+                                "losses": team_standing["all"]["lose"],
+                                "goals_for": team_standing["all"]["goals"]["for"],
+                                "goals_against": team_standing["all"]["goals"]["against"],
+                                "goal_difference": team_standing["goalsDiff"],
+                                "form": team_standing.get("form", "")
+                            }
+                            break
+        
+        print(f"📊 Position trouvée: {current_position}")
+        
+        # 3. STATISTIQUES DÉTAILLÉES (comme avant)
         try:
             stats_response = await get_team_statistics(team_id, league, season)
         except:
             stats_response = {"error": "Statistiques non disponibles"}
         
-        # 3. Joueurs simplifiés (les 15 principaux)
+        # 4. JOUEURS avec positions réelles (comme avant mais amélioré)
         players_data = await make_api_request("players", {
             "team": team_id,
             "league": league,
@@ -354,37 +400,58 @@ async def get_team_complete_profile(
         
         simplified_players = []
         if players_data.get("response"):
-            for player_item in players_data["response"][:15]:
+            print(f"👥 {len(players_data['response'])} joueurs trouvés")
+            
+            # Prendre les 20 premiers joueurs avec statistiques
+            for player_item in players_data["response"][:20]:
                 player = player_item["player"]
-                statistics = player_item.get("statistics", [{}])[0] if player_item.get("statistics") else {}
+                statistics = player_item.get("statistics", [])
                 
-                simplified_players.append({
-                    "id": player["id"],
-                    "name": player["name"],
-                    "age": player.get("age"),
-                    "nationality": player.get("nationality"),
-                    "height": player.get("height"),
-                    "weight": player.get("weight"),
-                    "photo": player.get("photo"),
-                    "injured": player.get("injured", False),
-                    "position": statistics.get("games", {}).get("position"),
-                    "appearances": statistics.get("games", {}).get("appearences", 0),
-                    "goals": statistics.get("goals", {}).get("total", 0),
-                    "assists": statistics.get("goals", {}).get("assists", 0)
-                })
+                if statistics:
+                    stat = statistics[0]
+                    games = stat.get("games", {})
+                    goals_stats = stat.get("goals", {})
+                    
+                    simplified_players.append({
+                        "id": player["id"],
+                        "name": player["name"],
+                        "age": player.get("age"),
+                        "nationality": player.get("nationality"),
+                        "height": player.get("height"),
+                        "weight": player.get("weight"),
+                        "photo": player.get("photo"),
+                        "injured": player.get("injured", False),
+                        "position": games.get("position"),
+                        "appearances": games.get("appearences", 0),
+                        "goals": goals_stats.get("total", 0),
+                        "assists": goals_stats.get("assists", 0),
+                        "minutes": games.get("minutes", 0),
+                        "rating": games.get("rating")
+                    })
         
-        # Construire la réponse complète
+        # Trier joueurs par apparitions
+        simplified_players.sort(key=lambda x: x["appearances"], reverse=True)
+        
+        # 5. RÉPONSE CORRIGÉE avec position réelle
         complete_profile = {
-            # Informations de base
+            # Informations de base (comme avant)
             "id": team["id"],
             "name": team["name"],
             "logo": team["logo"],
             "country": team["country"],
-            "code": team["code"],
-            "founded": team["founded"],
-            "national": team["national"],
+            "code": team.get("code"),
+            "founded": team.get("founded"),
+            "national": team.get("national", False),
             
-            # Informations du stade
+            # NOUVEAU: Position et statistiques du classement
+            "current_season": {
+                "league": league,
+                "season": season,
+                "position": current_position,
+                **standing_stats
+            },
+            
+            # Informations du stade (comme avant)
             "venue": {
                 "name": venue.get("name"),
                 "city": venue.get("city"),
@@ -394,10 +461,10 @@ async def get_team_complete_profile(
                 "image": venue.get("image")
             } if venue else None,
             
-            # Statistiques complètes
+            # Statistiques détaillées (comme avant)
             "statistics": stats_response,
             
-            # Joueurs
+            # Joueurs (comme avant)
             "players": simplified_players,
             "players_count": len(simplified_players),
             
@@ -407,13 +474,13 @@ async def get_team_complete_profile(
             "last_update": datetime.now().isoformat()
         }
         
-        print(f"✅ Profil complet récupéré pour {team['name']}")
+        print(f"✅ Profil complet généré - Position: {current_position}, Joueurs: {len(simplified_players)}")
         return complete_profile
         
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Erreur profil complet équipe {team_id}: {e}")
+        print(f"❌ Erreur complète équipe {team_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération du profil: {str(e)}")
 
 # ============= ENDPOINTS EXISTANTS (CONSERVATION) =============
@@ -448,40 +515,18 @@ async def search_teams(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la recherche: {str(e)}")
 
-@router.get("/{team_id}")
-async def get_team(team_id: int):
-    """Récupérer les détails d'une équipe par son ID"""
-    try:
-        team_data = await make_api_request("teams", {"id": team_id})
-        
-        if not team_data.get("response"):
-            raise HTTPException(status_code=404, detail="Équipe non trouvée")
-        
-        team_info = team_data["response"][0]
-        team = team_info["team"]
-        venue = team_info["venue"]
-        
-        return {
-            "id": team["id"],
-            "name": team["name"],
-            "logo": team["logo"],
-            "country": team["country"],
-            "code": team["code"],
-            "founded": team["founded"],
-            "national": team["national"],
-            "venue": venue
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération: {str(e)}")
+
 
 @router.get("/{team_id}/players")
-async def get_team_with_players(team_id: int, season: int = Query(2023, description="Saison")):
-    """Récupérer une équipe avec ses détails et joueurs (ANCIEN ENDPOINT - CONSERVATION)"""
+async def get_team_with_players(
+    team_id: int, 
+    season: int = Query(2023, description="Saison"),
+    league: int = Query(61, description="Ligue") # AJOUT DU PARAMÈTRE LEAGUE
+):
+    """CORRIGÉ - Récupérer une équipe avec ses détails et joueurs + POSITION RÉELLE"""
     try:
-        # Utiliser le nouvel endpoint complet mais retourner dans l'ancien format
-        complete_data = await get_team_complete_profile(team_id, 61, season)  # Default Ligue 1
+        # Utiliser le nouvel endpoint complet corrigé
+        complete_data = await get_team_complete_profile(team_id, league, season)
         
         # Adapter au format attendu par le frontend existant
         result = {
@@ -489,12 +534,17 @@ async def get_team_with_players(team_id: int, season: int = Query(2023, descript
             "name": complete_data["name"],
             "logo": complete_data["logo"],
             "country": complete_data["country"],
-            "code": complete_data["code"],
-            "founded": complete_data["founded"],
-            "national": complete_data["national"],
+            "code": complete_data.get("code"),
+            "founded": complete_data.get("founded"),
+            "national": complete_data.get("national", False),
+            
+            # CORRECTION: Position réelle
+            "position": complete_data["current_season"]["position"],
+            "points": complete_data["current_season"].get("points"),
+            "matches_played": complete_data["current_season"].get("matches_played"),
         }
         
-        # Ajouter les infos du stade
+        # Ajouter les infos du stade (comme avant)
         if complete_data["venue"]:
             venue = complete_data["venue"]
             result.update({
@@ -506,7 +556,7 @@ async def get_team_with_players(team_id: int, season: int = Query(2023, descript
                 "venue_image": venue.get("image")
             })
         
-        # Simplifier les joueurs pour compatibilité
+        # Simplifier les joueurs pour compatibilité (comme avant)
         if complete_data["players"]:
             result["players"] = []
             for player in complete_data["players"]:
@@ -518,7 +568,11 @@ async def get_team_with_players(team_id: int, season: int = Query(2023, descript
                     "height": player.get("height"),
                     "weight": player.get("weight"),
                     "photo": player.get("photo"),
-                    "injured": player.get("injured", False)
+                    "injured": player.get("injured", False),
+                    "position": player.get("position"),
+                    "appearances": player.get("appearances", 0),
+                    "goals": player.get("goals", 0),
+                    "assists": player.get("assists", 0)
                 })
         
         return result
@@ -529,6 +583,27 @@ async def get_team_with_players(team_id: int, season: int = Query(2023, descript
         print(f"❌ Erreur API team details: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération: {str(e)}")
 
+# ============= ENDPOINT DE DEBUG AJOUTÉ =============
+@router.get("/{team_id}/debug")
+async def debug_team_data(team_id: int, league: int = 61, season: int = 2023):
+    """Endpoint de debug pour voir les données brutes"""
+    try:
+        # Test appel basique
+        team_data = await make_api_request("teams", {"id": team_id})
+        standings_data = await make_api_request("standings", {"league": league, "season": season})
+        
+        return {
+            "team_data": team_data,
+            "standings_snippet": {
+                "found": bool(standings_data.get("response")),
+                "leagues_count": len(standings_data.get("response", [])),
+                "first_league": standings_data.get("response", [{}])[0].get("league", {}).get("name") if standings_data.get("response") else None
+            },
+            "api_key_valid": len(headers.get("X-RapidAPI-Key", "")) > 10
+        }
+    except Exception as e:
+        return {"error": str(e)}
+    
 # Endpoint pour équipes par championnat (EXISTANT)
 @router.get("/")
 async def get_teams_by_league(

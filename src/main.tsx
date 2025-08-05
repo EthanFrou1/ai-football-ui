@@ -12,7 +12,7 @@ if (!container) {
 const root = createRoot(container);
 
 root.render(
-    <React.StrictMode>
+    // <React.StrictMode>
         <AppRouter />
-    </React.StrictMode>
+    //</React.StrictMode>
 );

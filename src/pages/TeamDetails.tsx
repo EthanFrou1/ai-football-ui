@@ -200,12 +200,27 @@ export default function TeamDetails() {
   const [tabValue, setTabValue] = useState(0);
   const navigate = useNavigate();
 
-  // ✅ CORRECTION : Utiliser la fonction existante pour l'instant
-  const { data: team, loading, error, refetch } = useApi(
+  // 1. ✅ Appel pour les infos de l'équipe (position, points, etc.)
+  const { data: team, loading: teamLoading, error: teamError, refetch: refetchTeam } = useApi(
     () => teamsService.getTeamWithPlayers(teamIdNumber),
     [teamIdNumber],
     !!teamIdNumber && teamIdNumber > 0
   );
+
+  // 2. 🔄 NOUVEAU : Appel pour les joueurs avec statistiques détaillées
+  const { data: playersData, loading: playersLoading, error: playersError, refetch: refetchPlayers } = useApi(
+    () => teamsService.getDetailedPlayersStats(teamIdNumber, 61, 2023),
+    [teamIdNumber],
+    !!teamIdNumber && teamIdNumber > 0 && !!team // Attendre que l'équipe soit chargée
+  );
+
+  // ✅ États combinés
+  const loading = teamLoading || playersLoading;
+  const error = teamError || playersError;
+  const refetch = () => {
+    refetchTeam();
+    refetchPlayers();
+  };
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -216,7 +231,7 @@ export default function TeamDetails() {
   };
 
   // Affichage du loading
-  if (loading) {
+  if (loading && !team) {
     return (
       <Layout showBreadcrumb breadcrumbComponent={<BreadcrumbNavigation />}>
         <TeamDetailsSkeleton />
@@ -292,21 +307,39 @@ export default function TeamDetails() {
                     sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', backdropFilter: 'blur(10px)' }}
                   />
                 )}
+                {/* NOUVEAU : Chip de position */}
+                {team.position && (
+                  <Chip 
+                    label={`#${team.position} au classement`}
+                    sx={{ 
+                      backgroundColor: 'rgba(255,215,0,0.9)', 
+                      color: 'black', 
+                      fontWeight: 'bold' 
+                    }}
+                    icon={<EmojiEvents sx={{ color: 'black !important' }} />}
+                  />
+                )}
               </Box>
             </Grid>
 
-            <Grid item xs={12} md={3}>
+           <Grid item xs={12} md={3}>
               <Grid container spacing={2}>
                 <Grid item xs={4} md={12}>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>28</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                    {team.matches_played || 0}
+                  </Typography>
                   <Typography variant="body2">Matchs</Typography>
                 </Grid>
                 <Grid item xs={4} md={12}>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: COLORS.wins }}>65</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: COLORS.wins }}>
+                    {team.points || 0}
+                  </Typography>
                   <Typography variant="body2">Points</Typography>
                 </Grid>
                 <Grid item xs={4} md={12}>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>2°</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                    {team.position ? `${team.position}°` : '?'}
+                  </Typography>
                   <Typography variant="body2">Position</Typography>
                 </Grid>
               </Grid>
@@ -332,7 +365,19 @@ export default function TeamDetails() {
         >
           <Tab label="Informations" icon={<Person />} />
           <Tab label="Statistiques" icon={<TrendingUp />} />
-          <Tab label="Joueurs" icon={<SportsFootball />} />
+          <Tab 
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <SportsFootball />
+                Joueurs
+                {playersLoading && (
+                  <Box sx={{ ml: 1 }}>
+                    <LinearProgress sx={{ width: 20, height: 2 }} />
+                  </Box>
+                )}
+              </Box>
+            } 
+          />
           <Tab label="Performance" icon={<EmojiEvents />} />
         </Tabs>
       </Paper>
@@ -434,20 +479,28 @@ export default function TeamDetails() {
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                     <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <SportsFootball color="primary" /> 
-                      Effectif ({team.players?.length || 0} joueurs)
+                      Effectif ({(playersData?.players || team.players || []).length} joueurs)
                     </Typography>
-                    {team.players && team.players.length > 0 && (
+                    {((playersData?.players && playersData.players.length > 0) || (team.players && team.players.length > 0)) && (
                       <Button variant="outlined" startIcon={<SportsSoccer />}>
                         Voir statistiques détaillées
                       </Button>
+                    )}
+                    {playersLoading && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <LinearProgress sx={{ width: 100 }} />
+                        <Typography variant="body2" color="text.secondary">
+                          Chargement des stats...
+                        </Typography>
+                      </Box>
                     )}
                   </Box>
                   
                   <Divider sx={{ mb: 3 }} />
                   
-                  {team.players && team.players.length > 0 ? (
+                  {((playersData?.players && playersData.players.length > 0) || (team.players && team.players.length > 0)) ? (
                     <Box>
-                      {team.players.slice(0, 10).map((player, index) => (
+                      {(playersData?.players || team.players || []).slice(0, 10).map((player, index) => (
                         <PlayerCard
                           key={player.id}
                           player={player}
@@ -455,14 +508,14 @@ export default function TeamDetails() {
                         />
                       ))}
                       
-                      {team.players.length > 10 && (
+                      {(playersData?.players || team.players || []).length > 10 && (
                         <Box sx={{ textAlign: 'center', mt: 3 }}>
                           <Button 
                             variant="outlined" 
                             size="large"
                             onClick={() => navigate(`/team/${teamId}/players`)}
                           >
-                            Voir les {team.players.length - 10} autres joueurs
+                            Voir les {(playersData?.players || team.players || []).length - 10} autres joueurs
                           </Button>
                         </Box>
                       )}
@@ -471,10 +524,13 @@ export default function TeamDetails() {
                     <Box sx={{ textAlign: 'center', py: 8 }}>
                       <SportsFootball sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                       <Typography variant="h6" color="text.secondary" gutterBottom>
-                        Chargement des données des joueurs...
+                        {playersLoading ? 'Chargement des données des joueurs...' : 'Aucun joueur trouvé'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Les statistiques des joueurs sont en cours de récupération depuis l'API.
+                        {playersLoading 
+                          ? 'Les statistiques des joueurs sont en cours de récupération depuis l\'API.'
+                          : 'Les données des joueurs ne sont pas disponibles pour cette équipe.'
+                        }
                       </Typography>
                     </Box>
                   )}
@@ -490,9 +546,9 @@ export default function TeamDetails() {
                   </Typography>
                   <Divider sx={{ mb: 3 }} />
                   
-                  {team.players && team.players.length > 0 ? (
+                  {((playersData?.players && playersData.players.length > 0) || (team.players && team.players.length > 0)) ? (
                     <List>
-                      {team.players
+                      {(playersData?.players || team.players || [])
                         .filter(p => (p.goals || 0) > 0)
                         .sort((a, b) => (b.goals || 0) - (a.goals || 0))
                         .slice(0, 5)
@@ -512,14 +568,14 @@ export default function TeamDetails() {
                           </ListItemAvatar>
                           <ListItemText
                             primary={<Typography variant="h6">{player.name}</Typography>}
-                            secondary={`${player.goals || 0} buts • ${player.assists || 0} passes`}
+                            secondary={`${player.goals || 0} buts • ${player.assists || 0} passes • ${player.appearances || 0} matchs`}
                           />
                         </ListItem>
                       ))}
                     </List>
                   ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                      Données des joueurs en cours de chargement...
+                      {playersLoading ? 'Chargement des statistiques...' : 'Données des joueurs en cours de chargement...'}
                     </Typography>
                   )}
                 </CardContent>
@@ -577,12 +633,16 @@ export default function TeamDetails() {
         </Card>
       )}
       
-      {/* Debug info */}
+      {/* Debug info amélioré */}
       <Box sx={{ mt: 4, textAlign: 'center' }}>
         <Paper sx={{ p: 3, backgroundColor: 'grey.50' }}>
           <Typography variant="body1" color="text.secondary">
             ⚽ <strong>Team ID:</strong> {teamId} • 
+            <strong>Position:</strong> #{team.position} • 
+            <strong>Points:</strong> {team.points} • 
             <strong>Joueurs chargés:</strong> {team.players?.length || 0} • 
+            <strong>Joueurs détaillés:</strong> {playersData?.players?.length || 0} • 
+            <strong>Status:</strong> {playersLoading ? '🔄 Chargement...' : '✅ Terminé'} • 
             Dernière mise à jour : {new Date().toLocaleString()}
           </Typography>
         </Paper>

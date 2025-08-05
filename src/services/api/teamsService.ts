@@ -10,7 +10,10 @@ export interface TeamWithPlayers {
   country: string;
   code?: string;
   founded?: number;
-  national?: boolean;
+  national?: boolean; 
+  position?: number;
+  points?: number;
+  matches_played?: number;
   venue_name?: string;
   venue_city?: string;
   venue_capacity?: number;
@@ -76,28 +79,13 @@ export async function getTeamWithPlayersAndStats(
 // CORRECTION : Fonction pour récupérer les détails d'une équipe avec joueurs (ANCIEN FORMAT MAIS CORRIGÉ)
 export async function getTeamWithPlayers(teamId: number): Promise<TeamWithPlayers> {
   try {
-    console.log(`📡 Appel API Team Details (mode compatibilité): teamId=${teamId}`);
+    console.log(`📡 Appel API Team Details: teamId=${teamId}`);
     
-    // Utiliser la nouvelle fonction avec des paramètres par défaut
-    return await getTeamWithPlayersAndStats(teamId, 61, 2023);
+    // Utiliser l'auto-détection de ligue que tu as déjà créée !
+    return await getTeamWithAutoLeague(teamId);
 
   } catch (error) {
     console.error('❌ Erreur lors de la récupération des détails équipe:', error);
-    
-    // Fallback : retourner au moins les infos de base de l'équipe
-    try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/teams/${teamId}`);
-      if (response.ok) {
-        const basicData = await response.json();
-        return {
-          ...basicData,
-          players: [] // Pas de joueurs en fallback
-        };
-      }
-    } catch (fallbackError) {
-      console.error('❌ Erreur même en fallback:', fallbackError);
-    }
-    
     throw error;
   }
 }
@@ -167,13 +155,13 @@ export function useTeamWithStats(teamId: number, leagueId?: number) {
 // UTILITAIRE : Déterminer la ligue selon l'équipe
 export function getLeagueByTeamId(teamId: number): number {
   // Équipes de Ligue 1 (France)
-  const ligue1Teams = [85, 79, 80, 84, 81, 77, 83, 82, 93, 94]; // PSG, OM, OL, Nice, Monaco, Lille, etc.
+  const ligue1Teams = [85, 79, 80, 84, 81, 77, 83, 82, 93, 94, 91]; // PSG, OM, OL, Nice, Monaco, Lille, etc.
   
   // Équipes de Premier League (Angleterre)  
-  const premierLeagueTeams = [50, 47, 40, 42, 33, 34, 35, 36, 41, 45]; // Man City, Tottenham, Liverpool, Arsenal, etc.
+  const premierLeagueTeams = [50, 47, 40, 42, 33, 34, 35, 36, 41, 45, 49, 51]; // Man City, Tottenham, Liverpool, Arsenal, etc.
   
   // Équipes de La Liga (Espagne)
-  const laLigaTeams = [529, 530, 531, 532, 533, 548, 541]; // Barcelona, Real Madrid, etc.
+  const laLigaTeams = [529, 530, 531, 532, 533, 548, 541, 542]; // Barcelona, Real Madrid, etc.
   
   if (ligue1Teams.includes(teamId)) return 61;
   if (premierLeagueTeams.includes(teamId)) return 39;
