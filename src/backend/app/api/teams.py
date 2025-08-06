@@ -237,7 +237,7 @@ async def get_team_statistics(
 @router.get("/{team_id}/players/detailed")
 async def get_team_players_detailed(
     team_id: int, 
-    league: int = Query(..., description="ID de la ligue"),
+    league: int = Query(61, description="ID de la ligue"),  # ← Rendre optionnel
     season: int = Query(2023, description="Année de la saison")
 ):
     """
@@ -277,31 +277,31 @@ async def get_team_players_detailed(
                 "photo": player.get("photo"),
                 "injured": player.get("injured", False),
                 
-                # Statistiques de performance
+                # Statistiques de performance - CORRECTION ICI
                 "performance": {
                     "position": games.get("position"),
-                    "appearances": games.get("appearences", 0),
-                    "minutes": games.get("minutes", 0),
+                    "appearances": games.get("appearences", 0) or 0,  # ← CORRIGER
+                    "minutes": games.get("minutes", 0) or 0,
                     "rating": games.get("rating"),
                     "captain": games.get("captain", False),
                     
                     # Buts et passes
-                    "goals": goals_stats.get("total", 0),
-                    "assists": goals_stats.get("assists", 0),
-                    "saves": goals_stats.get("saves", 0),
+                    "goals": goals_stats.get("total", 0) or 0,
+                    "assists": goals_stats.get("assists", 0) or 0,
+                    "saves": goals_stats.get("saves", 0) or 0,
                     
                     # Cartons
-                    "yellow_cards": cards.get("yellow", 0),
-                    "red_cards": cards.get("red", 0),
+                    "yellow_cards": cards.get("yellow", 0) or 0,
+                    "red_cards": cards.get("red", 0) or 0,
                 },
                 
                 # Calculs personnalisés
                 "calculated_stats": {}
             }
             
-            # Calculs personnalisés
-            if player_data["performance"]["appearances"] > 0:
-                appearances = player_data["performance"]["appearances"]
+            # CORRECTION : Vérifier que appearances n'est pas None
+            appearances = player_data["performance"]["appearances"]
+            if appearances and appearances > 0:  # ← CORRIGER ICI
                 player_data["calculated_stats"] = {
                     "goals_per_match": round(player_data["performance"]["goals"] / appearances, 2),
                     "assists_per_match": round(player_data["performance"]["assists"] / appearances, 2),
@@ -311,8 +311,8 @@ async def get_team_players_detailed(
             
             detailed_players.append(player_data)
         
-        # Trier par nombre d'apparitions
-        detailed_players.sort(key=lambda x: x["performance"]["appearances"], reverse=True)
+        # Trier par nombre d'apparitions (avec gestion des None)
+        detailed_players.sort(key=lambda x: x["performance"]["appearances"] or 0, reverse=True)
         
         print(f"✅ {len(detailed_players)} joueurs détaillés récupérés")
         
@@ -331,11 +331,12 @@ async def get_team_players_detailed(
 @router.get("/{team_id}/complete")
 async def get_team_complete_profile(
     team_id: int,
-    league: int = Query(61, description="ID de la ligue"), # DÉFAUT AJOUTÉ
+    league: int = Query(61, description="ID de la ligue"), 
     season: int = Query(2023, description="Année de la saison")
 ):
     """
-    ENDPOINT CORRIGÉ - Récupère la position RÉELLE depuis les standings
+    Endpoint combiné pour récupérer TOUTES les informations d'une équipe
+    Combine les détails de base + statistiques + joueurs
     """
     try:
         print(f"🔥 Profil complet équipe {team_id} - Ligue {league}, Saison {season}")
@@ -344,8 +345,7 @@ async def get_team_complete_profile(
         team_data = await make_api_request("teams", {"id": team_id})
         
         if not team_data.get("response"):
-            print(f"❌ Équipe {team_id} non trouvée dans l'API")
-            raise HTTPException(status_code=404, detail=f"Équipe {team_id} non trouvée")
+            raise HTTPException(status_code=404, detail="Équipe non trouvée")
         
         team_info = team_data["response"][0]
         team = team_info["team"]
@@ -353,7 +353,7 @@ async def get_team_complete_profile(
         
         print(f"✅ Équipe trouvée: {team['name']}")
         
-        # 2. CLASSEMENT pour obtenir la VRAIE position - NOUVELLE LOGIQUE
+        # 2. CLASSEMENT pour obtenir la VRAIE position
         print(f"🏆 Récupération classement ligue {league}")
         standings_data = await make_api_request("standings", {
             "league": league,
@@ -385,25 +385,37 @@ async def get_team_complete_profile(
         
         print(f"📊 Position trouvée: {current_position}")
         
-        # 3. STATISTIQUES DÉTAILLÉES (comme avant)
+        # 3. STATISTIQUES DÉTAILLÉES (optionnel)
         try:
             stats_response = await get_team_statistics(team_id, league, season)
         except:
             stats_response = {"error": "Statistiques non disponibles"}
         
-        # 4. JOUEURS avec positions réelles (comme avant mais amélioré)
+        # 4. JOUEURS PRINCIPAUX - AVEC DEBUG
+        print(f"👥 DÉBUT Debug récupération joueurs équipe {team_id}")
+        print(f"🧪 DEBUG: Tentative récupération joueurs pour team={team_id}, league={league}, season={season}")
+        
         players_data = await make_api_request("players", {
             "team": team_id,
             "league": league,
             "season": season
         })
         
+        # DEBUG LOGS DÉTAILLÉS
+        print(f"🧪 DEBUG: Réponse players_data keys: {list(players_data.keys()) if players_data else 'None'}")
+        print(f"🧪 DEBUG: Response items: {len(players_data.get('response', [])) if players_data else 0}")
+        print(f"🧪 DEBUG: Raw response (first 300 chars): {str(players_data)[:300]}")
+        
+        if players_data.get("response"):
+            if players_data['response']:
+                first_player = players_data['response'][0]
+                
         simplified_players = []
         if players_data.get("response"):
-            print(f"👥 {len(players_data['response'])} joueurs trouvés")
+            print(f"👥 {len(players_data['response'])} joueurs trouvés - Traitement en cours...")
             
             # Prendre les 20 premiers joueurs avec statistiques
-            for player_item in players_data["response"][:20]:
+            for i, player_item in enumerate(players_data["response"][:20]):
                 player = player_item["player"]
                 statistics = player_item.get("statistics", [])
                 
@@ -411,6 +423,10 @@ async def get_team_complete_profile(
                     stat = statistics[0]
                     games = stat.get("games", {})
                     goals_stats = stat.get("goals", {})
+                    
+                    appearances = games.get("appearences", 0) or 0
+                    goals = goals_stats.get("total", 0) or 0
+                    assists = goals_stats.get("assists", 0) or 0
                     
                     simplified_players.append({
                         "id": player["id"],
@@ -422,19 +438,39 @@ async def get_team_complete_profile(
                         "photo": player.get("photo"),
                         "injured": player.get("injured", False),
                         "position": games.get("position"),
-                        "appearances": games.get("appearences", 0),
-                        "goals": goals_stats.get("total", 0),
-                        "assists": goals_stats.get("assists", 0),
-                        "minutes": games.get("minutes", 0),
+                        "appearances": appearances,
+                        "goals": goals,
+                        "assists": assists,
+                        "minutes": games.get("minutes", 0) or 0,
                         "rating": games.get("rating")
                     })
+                else:
+                    # Ajouter le joueur même sans stats
+                    simplified_players.append({
+                        "id": player["id"],
+                        "name": player["name"],
+                        "age": player.get("age"),
+                        "nationality": player.get("nationality"),
+                        "height": player.get("height"),
+                        "weight": player.get("weight"),
+                        "photo": player.get("photo"),
+                        "injured": player.get("injured", False),
+                        "position": None,
+                        "appearances": 0,
+                        "goals": 0,
+                        "assists": 0,
+                        "minutes": 0,
+                        "rating": None
+                    })
+        else:
+            print(f"🧪 DEBUG: Aucun joueur dans la réponse API")
         
-        # Trier joueurs par apparitions
-        simplified_players.sort(key=lambda x: x["appearances"], reverse=True)
+        # Trier joueurs par apparitions (avec gestion des None)
+        simplified_players.sort(key=lambda x: x.get("appearances", 0) or 0, reverse=True)
         
-        # 5. RÉPONSE CORRIGÉE avec position réelle
+        # 5. CONSTRUIRE LA RÉPONSE COMPLÈTE - AVEC current_season
         complete_profile = {
-            # Informations de base (comme avant)
+            # Informations de base
             "id": team["id"],
             "name": team["name"],
             "logo": team["logo"],
@@ -443,15 +479,23 @@ async def get_team_complete_profile(
             "founded": team.get("founded"),
             "national": team.get("national", False),
             
-            # NOUVEAU: Position et statistiques du classement
+            # STRUCTURE current_season
             "current_season": {
                 "league": league,
                 "season": season,
                 "position": current_position,
-                **standing_stats
+                "points": standing_stats.get("points", 0),
+                "matches_played": standing_stats.get("matches_played", 0),
+                "wins": standing_stats.get("wins", 0),
+                "draws": standing_stats.get("draws", 0),
+                "losses": standing_stats.get("losses", 0),
+                "goals_for": standing_stats.get("goals_for", 0),
+                "goals_against": standing_stats.get("goals_against", 0),
+                "goal_difference": standing_stats.get("goal_difference", 0),
+                "form": standing_stats.get("form", "")
             },
             
-            # Informations du stade (comme avant)
+            # Informations du stade
             "venue": {
                 "name": venue.get("name"),
                 "city": venue.get("city"),
@@ -461,17 +505,20 @@ async def get_team_complete_profile(
                 "image": venue.get("image")
             } if venue else None,
             
-            # Statistiques détaillées (comme avant)
-            "statistics": stats_response,
+            # Statistiques détaillées
+            "detailed_statistics": stats_response,
             
-            # Joueurs (comme avant)
+            # Joueurs
             "players": simplified_players,
             "players_count": len(simplified_players),
             
             # Métadonnées
-            "league": league,
-            "season": season,
-            "last_update": datetime.now().isoformat()
+            "last_update": datetime.now().isoformat(),
+            "debug_info": {
+                "api_calls_made": 4,
+                "players_api_response_length": len(players_data.get('response', [])) if players_data else 0,
+                "players_processed": len(simplified_players)
+            }
         }
         
         print(f"✅ Profil complet généré - Position: {current_position}, Joueurs: {len(simplified_players)}")
@@ -481,6 +528,8 @@ async def get_team_complete_profile(
         raise
     except Exception as e:
         print(f"❌ Erreur complète équipe {team_id}: {e}")
+        import traceback
+        print(f"📍 Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération du profil: {str(e)}")
 
 # ============= ENDPOINTS EXISTANTS (CONSERVATION) =============

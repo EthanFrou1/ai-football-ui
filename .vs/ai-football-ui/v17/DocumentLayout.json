@@ -90,12 +90,8 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 42,
+          "SelectedChildIndex": 40,
           "Children": [
-            {
-              "$type": "Bookmark",
-              "Name": "ST:128:0:{13b12e3e-c1b4-4539-9371-4fe9a0d523fc}"
-            },
             {
               "$type": "Bookmark",
               "Name": "ST:131:0:{13b12e3e-c1b4-4539-9371-4fe9a0d523fc}"
@@ -194,10 +190,6 @@
             },
             {
               "$type": "Bookmark",
-              "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
-            },
-            {
-              "$type": "Bookmark",
               "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
             },
             {
@@ -210,8 +202,7 @@
               "RelativeToolTip": "src\\components\\UI\\TabsContainer.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABsAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2025-07-24T09:49:09.444Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-07-24T09:49:09.444Z"
             },
             {
               "$type": "Document",
@@ -247,8 +238,7 @@
               "RelativeToolTip": "src\\components\\Search\\TeamSearchBar.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAZAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2025-07-24T09:34:02.771Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-07-24T09:34:02.771Z"
             },
             {
               "$type": "Document",
@@ -260,8 +250,7 @@
               "RelativeToolTip": "src\\components\\Standings\\LeagueStandings.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2025-07-24T09:33:49.989Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-07-24T09:33:49.989Z"
             },
             {
               "$type": "Document",
@@ -285,8 +274,7 @@
               "RelativeToolTip": "src\\components\\Matches\\UpcomingMatches.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2025-07-24T09:33:30.674Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-07-24T09:33:30.674Z"
             },
             {
               "$type": "Document",
