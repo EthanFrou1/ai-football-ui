@@ -541,41 +541,42 @@ export default function TeamDetails() {
             <Grid item xs={12} lg={4}>
               <Card sx={{ height: 'fit-content' }}>
                 <CardContent sx={{ p: 4 }}>
+                  {/* Top Scoreurs - AVEC VRAIES DONNÉES */}
                   <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
                     <Star color="warning" /> Top Scoreurs
                   </Typography>
                   <Divider sx={{ mb: 3 }} />
-                  
-                  {((playersData?.players && playersData.players.length > 0) || (team.players && team.players.length > 0)) ? (
+
+                  {playersData?.players && playersData.players.length > 0 ? (
                     <List>
-                      {(playersData?.players || team.players || [])
-                        .filter(p => (p.goals || 0) > 0)
-                        .sort((a, b) => (b.goals || 0) - (a.goals || 0))
-                        .slice(0, 5)
+                      {playersData.players
+                        .filter(p => (p.performance?.goals || 0) > 0)  // Seulement ceux qui ont marqué
+                        .sort((a, b) => (b.performance?.goals || 0) - (a.performance?.goals || 0))  // Tri par buts
+                        .slice(0, 5)  // Top 5
                         .map((player, index) => (
-                        <ListItem key={player.id} sx={{ px: 0, py: 2 }}>
-                          <ListItemAvatar>
-                            <Avatar 
-                              sx={{ 
-                                bgcolor: index === 0 ? '#FFD700' : 'primary.main',
-                                width: 40,
-                                height: 40,
-                                fontWeight: 'bold'
-                              }}
-                            >
-                              {index + 1}
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={<Typography variant="h6">{player.name}</Typography>}
-                            secondary={`${player.goals || 0} buts • ${player.assists || 0} passes • ${player.appearances || 0} matchs`}
-                          />
-                        </ListItem>
-                      ))}
+                          <ListItem key={player.id} sx={{ px: 0, py: 2 }}>
+                            <ListItemAvatar>
+                              <Avatar 
+                                sx={{ 
+                                  bgcolor: index === 0 ? '#FFD700' : 'primary.main',
+                                  width: 40,
+                                  height: 40,
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                {index + 1}
+                              </Avatar>
+                            </ListItemAvatar>
+                            <ListItemText
+                              primary={<Typography variant="h6">{player.name}</Typography>}
+                              secondary={`${player.performance?.goals || 0} buts • ${player.performance?.assists || 0} passes • ${player.performance?.appearances || 0} matchs`}
+                            />
+                          </ListItem>
+                        ))}
                     </List>
                   ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                      {playersLoading ? 'Chargement des statistiques...' : 'Données des joueurs en cours de chargement...'}
+                      {playersLoading ? 'Chargement des statistiques...' : 'Aucun buteur pour cette saison'}
                     </Typography>
                   )}
                 </CardContent>

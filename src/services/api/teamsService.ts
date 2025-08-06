@@ -179,6 +179,33 @@ export async function getTeamWithAutoLeague(teamId: number): Promise<TeamWithPla
   return await getTeamWithPlayersAndStats(teamId, detectedLeague, 2023);
 }
 
+// AJOUTER cette fonction dans teamsService.ts
+export async function getTeamTopPerformers(
+  teamId: number,
+  leagueId: number = 61,
+  season: number = 2023
+): Promise<any> {
+  try {
+    console.log(`🏆 Récupération top performers: teamId=${teamId}`);
+    
+    const response = await fetch(
+      `${API_CONFIG.BASE_URL}/teams/${teamId}/top-performers?league=${leagueId}&season=${season}`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Erreur API Top Performers: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Top performers récupérés:`, data.summary);
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Erreur top performers:', error);
+    throw error;
+  }
+}
+
 // ============= ANCIENNES FONCTIONS (CONSERVATION) =============
 
 export interface TeamFromStandings {

@@ -605,25 +605,6 @@ async def get_team_with_players(
                 "venue_image": venue.get("image")
             })
         
-        # Simplifier les joueurs pour compatibilité (comme avant)
-        if complete_data["players"]:
-            result["players"] = []
-            for player in complete_data["players"]:
-                result["players"].append({
-                    "id": player["id"],
-                    "name": player["name"],
-                    "age": player.get("age"),
-                    "nationality": player.get("nationality"),
-                    "height": player.get("height"),
-                    "weight": player.get("weight"),
-                    "photo": player.get("photo"),
-                    "injured": player.get("injured", False),
-                    "position": player.get("position"),
-                    "appearances": player.get("appearances", 0),
-                    "goals": player.get("goals", 0),
-                    "assists": player.get("assists", 0)
-                })
-        
         return result
         
     except HTTPException:
