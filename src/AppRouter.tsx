@@ -5,6 +5,7 @@ import Home from "./pages/Home";
 import LeagueSelector from "./pages/LeagueSelector";
 import Teams from "./pages/Teams";
 import TeamDetails from "./pages/TeamDetails";
+import PlayerDetails from "./pages/PlayerDetails";
 import Matches from "./pages/Matches";
 import MatchDetails from "./pages/MatchDetails";
 import Standings from "./pages/Standings";
@@ -48,6 +49,13 @@ export default function AppRouter() {
                     </>
                 } />
                 
+                {/* 🆕 Route globale pour les détails d'un joueur */}
+                <Route path="/player/:playerId" element={
+                    <>
+                        <PlayerDetails />
+                    </>
+                } />
+                
                 <Route path="/match/:id" element={
                     <>
                         <Header />
@@ -79,6 +87,13 @@ export default function AppRouter() {
                 <Route path="/league/:leagueId/team/:teamId" element={
                     <LeagueProvider>
                         <TeamDetails />
+                    </LeagueProvider>
+                } />
+                
+                {/* 🆕 Route dans le contexte d'une ligue pour les détails d'un joueur */}
+                <Route path="/league/:leagueId/player/:playerId" element={
+                    <LeagueProvider>
+                        <PlayerDetails />
                     </LeagueProvider>
                 } />
                 

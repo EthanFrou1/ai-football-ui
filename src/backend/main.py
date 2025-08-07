@@ -6,6 +6,7 @@ import uvicorn
 from app.config.settings import settings
 from app.api.teams import router as teams_router
 from app.api.matches import router as matches_router
+from app.api.players import router as players_router
 
 from app.api.standings import router as standings_router 
 
@@ -66,7 +67,8 @@ async def health_check():
 # Inclure les routers
 app.include_router(teams_router, prefix="/api")
 app.include_router(matches_router, prefix="/api")
-app.include_router(standings_router, prefix="/api")  # ← NOUVEAU
+app.include_router(standings_router, prefix="/api")
+app.include_router(players_router, prefix="/api")
 
 # Point d'entrée pour le développement
 if __name__ == "__main__":

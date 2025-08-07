@@ -229,6 +229,7 @@ export const LoadingProgress: React.FC<LoadingProgressProps> = ({
   </Box>
 );
 
+
 // Loading overlay pour les actions
 interface LoadingOverlayProps {
   loading: boolean;

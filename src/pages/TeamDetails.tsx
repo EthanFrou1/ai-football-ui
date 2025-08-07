@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   Typography, 
@@ -17,7 +17,16 @@ import {
   ListItemText,
   ListItemAvatar,
   Button,
-  LinearProgress
+  LinearProgress,
+  TextField,
+  InputAdornment,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Pagination,
+  Tooltip,
+  Fab
 } from "@mui/material";
 import { 
   LocationOn, 
@@ -29,7 +38,11 @@ import {
   Shield,
   EmojiEvents,
   Star,
-  SportsSoccer
+  SportsSoccer,
+  Search,
+  FilterList,
+  KeyboardArrowUp,
+  Visibility
 } from "@mui/icons-material";
 import { useApi } from "../hooks/useApi";
 import { teamsService } from "../services/api";
@@ -65,140 +78,238 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-// Composant PlayerCard intégré (simplifié)
-function PlayerCard({ 
+// Interface pour un joueur avec toutes ses statistiques
+interface PlayerWithStats {
+  id: number;
+  name: string;
+  age?: number;
+  nationality?: string;
+  height?: string;
+  weight?: string;
+  photo?: string;
+  injured?: boolean;
+  performance?: {
+    position?: string;
+    appearances?: number;
+    minutes?: number;
+    rating?: string | number;
+    goals?: number;
+    assists?: number;
+    yellow_cards?: number;
+    red_cards?: number;
+  };
+  calculated_stats?: {
+    goals_per_match?: number;
+    assists_per_match?: number;
+    minutes_per_match?: number;
+    goal_contribution?: number;
+  };
+}
+
+// Composant PlayerCard amélioré - UNIQUEMENT MODE CARTE
+function EnhancedPlayerCard({ 
   player, 
-  rank, 
-  onClick 
+  onClick
 }: { 
-  player: any; 
-  rank?: number;
+  player: PlayerWithStats; 
   onClick: () => void;
 }) {
+  const goalContribution = (player.performance?.goals || 0) + (player.performance?.assists || 0);
+  
   return (
     <Card 
       sx={{ 
-        mb: 2, 
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
         transition: 'all 0.3s ease',
         cursor: 'pointer',
+        borderRadius: 3,
+        overflow: 'hidden',
         '&:hover': {
-          transform: 'translateY(-4px)',
-          boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
-          bgcolor: 'primary.50'
+          transform: 'translateY(-8px)',
+          boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+          '& .player-photo': {
+            transform: 'scale(1.05)'
+          }
         }
       }}
       onClick={onClick}
     >
-      <CardContent sx={{ p: 3 }}>
-        <Grid container spacing={3} alignItems="center">
-          {/* Photo et rang */}
-          <Grid item xs={12} sm={3} md={2}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              {rank && (
-                <Box 
-                  sx={{ 
-                    width: 40, 
-                    height: 40, 
-                    borderRadius: '50%', 
-                    bgcolor: rank <= 3 ? '#FFD700' : 'primary.main',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    fontSize: '1.2rem'
-                  }}
-                >
-                  {rank}
-                </Box>
-              )}
-              <Avatar
-                src={player.photo}
-                alt={player.name}
-                sx={{ width: 60, height: 60 }}
-              />
-            </Box>
-          </Grid>
+      {/* Header avec photo et infos de base */}
+      <Box
+        sx={{
+          position: 'relative',
+          height: 120,
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden'
+        }}
+      >
+        <Avatar
+          src={player.photo}
+          alt={player.name}
+          className="player-photo"
+          sx={{ 
+            width: 80, 
+            height: 80,
+            border: '4px solid rgba(255,255,255,0.3)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            transition: 'transform 0.3s ease'
+          }}
+        />
+        
+        {/* Badges position et statut */}
+        <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
+          {player.performance?.position && (
+            <Chip 
+              label={player.performance.position} 
+              size="small" 
+              sx={{ 
+                bgcolor: 'rgba(255,255,255,0.9)', 
+                color: 'primary.main',
+                fontWeight: 'bold',
+                fontSize: '0.75rem'
+              }} 
+            />
+          )}
+        </Box>
+        
+        {player.injured && (
+          <Box sx={{ position: 'absolute', top: 12, left: 12 }}>
+            <Chip 
+              label="🤕" 
+              color="error" 
+              size="small"
+              sx={{ bgcolor: 'error.main', color: 'white' }}
+            />
+          </Box>
+        )}
+      </Box>
 
-          {/* Infos joueur */}
-          <Grid item xs={12} sm={4} md={3}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
-              {player.name}
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {player.age && (
-                <Chip label={`${player.age} ans`} size="small" variant="outlined" />
-              )}
-              {player.nationality && (
-                <Chip label={player.nationality} size="small" color="primary" variant="outlined" />
-              )}
-              {player.position && (
-                <Chip label={player.position} size="small" color="secondary" />
-              )}
-            </Box>
-            {player.injured && (
-              <Chip label="🤕 Blessé" color="error" size="small" sx={{ mt: 1 }} />
+      {/* Contenu principal */}
+      <CardContent sx={{ flexGrow: 1, p: 3 }}>
+        {/* Nom et infos personnelles */}
+        <Box sx={{ mb: 2, textAlign: 'center' }}>
+          <Typography variant="h6" fontWeight="700" gutterBottom noWrap>
+            {player.name}
+          </Typography>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 2 }}>
+            {player.age && (
+              <Chip label={`${player.age} ans`} size="small" variant="outlined" />
             )}
-          </Grid>
+            {player.nationality && (
+              <Chip 
+                label={player.nationality} 
+                size="small" 
+                color="primary" 
+                variant="outlined" 
+              />
+            )}
+          </Box>
+        </Box>
 
-          {/* Statistiques principales */}
-          <Grid item xs={12} sm={5} md={7}>
-            <Grid container spacing={2}>
-              <Grid item xs={3}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="h5" color="success.main" fontWeight="bold">
-                    {player.goals || 0}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Buts
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={3}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="h5" color="info.main" fontWeight="bold">
-                    {player.assists || 0}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Passes
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={3}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="h5" color="primary.main" fontWeight="bold">
-                    {player.appearances || 0}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Matchs
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={3}>
-                {player.rating && (
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5" color="warning.main" fontWeight="bold">
-                      {typeof player.rating === 'string' ? parseFloat(player.rating).toFixed(1) : player.rating.toFixed(1)}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Note
-                    </Typography>
-                  </Box>
-                )}
-              </Grid>
-            </Grid>
+        {/* Statistiques principales - Design en grille */}
+        <Grid container spacing={1.5} sx={{ mb: 2 }}>
+          <Grid item xs={6}>
+            <Paper sx={{ p: 1.5, textAlign: 'center', bgcolor: 'success.50' }}>
+              <Typography variant="h5" color="success.main" fontWeight="bold">
+                {player.performance?.goals || 0}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" fontWeight="600">
+                Buts
+              </Typography>
+            </Paper>
+          </Grid>
+          
+          <Grid item xs={6}>
+            <Paper sx={{ p: 1.5, textAlign: 'center', bgcolor: 'info.50' }}>
+              <Typography variant="h5" color="info.main" fontWeight="bold">
+                {player.performance?.assists || 0}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" fontWeight="600">
+                Passes
+              </Typography>
+            </Paper>
+          </Grid>
+          
+          <Grid item xs={6}>
+            <Paper sx={{ p: 1.5, textAlign: 'center', bgcolor: 'primary.50' }}>
+              <Typography variant="h5" color="primary.main" fontWeight="bold">
+                {player.performance?.appearances || 0}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" fontWeight="600">
+                Matchs
+              </Typography>
+            </Paper>
+          </Grid>
+          
+          <Grid item xs={6}>
+            <Paper sx={{ p: 1.5, textAlign: 'center', bgcolor: 'warning.50' }}>
+              <Typography variant="h5" color="warning.main" fontWeight="bold">
+                {goalContribution}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" fontWeight="600">
+                G+P
+              </Typography>
+            </Paper>
           </Grid>
         </Grid>
+
+        {/* Note et bouton d'action */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {player.performance?.rating && (
+            <Tooltip title="Note moyenne sur la saison">
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Star color="warning" fontSize="small" />
+                <Typography variant="body1" fontWeight="bold" color="warning.main">
+                  {typeof player.performance.rating === 'string' 
+                    ? parseFloat(player.performance.rating).toFixed(1) 
+                    : player.performance.rating.toFixed(1)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  /10
+                </Typography>
+              </Box>
+            </Tooltip>
+          )}
+          
+          <Button
+            variant="outlined"
+            startIcon={<Visibility />}
+            size="small"
+            sx={{ 
+              ml: 'auto',
+              borderRadius: 2,
+              textTransform: 'none',
+              fontWeight: 600
+            }}
+          >
+            Voir
+          </Button>
+        </Box>
       </CardContent>
     </Card>
   );
 }
 
 export default function TeamDetails() {
-  const { teamId } = useParams<{ teamId: string }>();
+  const { teamId, leagueId} = useParams<{ teamId: string, leagueId?: string }>();
   const teamIdNumber = parseInt(teamId || "0");
   const [tabValue, setTabValue] = useState(0);
   const navigate = useNavigate();
+  
+  // États pour le système de filtres des joueurs
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<string>('appearances');
+  const [positionFilter, setPositionFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  
+  const playersPerPage = 9; // 9 cartes par page (3x3)
 
   // 1. ✅ Appel pour les infos de l'équipe (position, points, etc.)
   const { data: team, loading: teamLoading, error: teamError, refetch: refetchTeam } = useApi(
@@ -207,11 +318,11 @@ export default function TeamDetails() {
     !!teamIdNumber && teamIdNumber > 0
   );
 
-  // 2. 🔄 NOUVEAU : Appel pour les joueurs avec statistiques détaillées
+  // 2. ✅ Appel pour les joueurs avec statistiques détaillées
   const { data: playersData, loading: playersLoading, error: playersError, refetch: refetchPlayers } = useApi(
     () => teamsService.getDetailedPlayersStats(teamIdNumber, 61, 2023),
     [teamIdNumber],
-    !!teamIdNumber && teamIdNumber > 0 && !!team // Attendre que l'équipe soit chargée
+    !!teamIdNumber && teamIdNumber > 0 && !!team
   );
 
   // ✅ États combinés
@@ -222,13 +333,120 @@ export default function TeamDetails() {
     refetchPlayers();
   };
 
+  // Gestion du scroll vers le haut
+  React.useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ✅ Logique de filtrage et tri des joueurs
+  const filteredAndSortedPlayers = useMemo(() => {
+    let players = (playersData?.players || team?.players || []) as PlayerWithStats[];
+    
+    // Filtrage par recherche
+    if (searchTerm) {
+      players = players.filter(player => 
+        player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        player.nationality?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        player.performance?.position?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Filtrage par position
+    if (positionFilter !== 'all') {
+      players = players.filter(player => {
+        const position = player.performance?.position?.toLowerCase() || '';
+        switch (positionFilter) {
+          case 'goalkeeper': return position.includes('goalkeeper');
+          case 'defender': return position.includes('defender');
+          case 'midfielder': return position.includes('midfielder');
+          case 'forward': return position.includes('forward') || position.includes('attacker');
+          default: return true;
+        }
+      });
+    }
+    
+    // Tri
+    players.sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'age':
+          return (b.age || 0) - (a.age || 0);
+        case 'goals':
+          return (b.performance?.goals || 0) - (a.performance?.goals || 0);
+        case 'assists':
+          return (b.performance?.assists || 0) - (a.performance?.assists || 0);
+        case 'appearances':
+          return (b.performance?.appearances || 0) - (a.performance?.appearances || 0);
+        case 'rating':
+          const aRating = typeof a.performance?.rating === 'string' 
+            ? parseFloat(a.performance.rating) 
+            : (a.performance?.rating || 0);
+          const bRating = typeof b.performance?.rating === 'string' 
+            ? parseFloat(b.performance.rating) 
+            : (b.performance?.rating || 0);
+          return bRating - aRating;
+        case 'contribution':
+          const aContrib = (a.performance?.goals || 0) + (a.performance?.assists || 0);
+          const bContrib = (b.performance?.goals || 0) + (b.performance?.assists || 0);
+          return bContrib - aContrib;
+        default:
+          return (b.performance?.appearances || 0) - (a.performance?.appearances || 0);
+      }
+    });
+    
+    return players;
+  }, [playersData?.players, team?.players, searchTerm, positionFilter, sortBy]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredAndSortedPlayers.length / playersPerPage);
+  const paginatedPlayers = filteredAndSortedPlayers.slice(
+    (currentPage - 1) * playersPerPage,
+    currentPage * playersPerPage
+  );
+
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
+    setCurrentPage(1); // Reset pagination quand on change d'onglet
   };
 
   const handlePlayerClick = (playerId: number) => {
-    navigate(`/player/${playerId}`);
+    // Si on est dans le contexte d'une ligue, utiliser la route avec ligue
+    if (leagueId) {
+      navigate(`/league/${leagueId}/player/${playerId}`);
+    } else {
+      // Sinon utiliser la route globale
+      navigate(`/player/${playerId}`);
+    }
   };
+
+  const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
+    setCurrentPage(value);
+    scrollToTop();
+  };
+
+  // Positions uniques pour le filtre
+  const uniquePositions = useMemo(() => {
+    const positions = new Set<string>();
+    (playersData?.players || team?.players || []).forEach((player: any) => {
+      if (player.performance?.position) {
+        const pos = player.performance.position.toLowerCase();
+        if (pos.includes('goalkeeper')) positions.add('goalkeeper');
+        else if (pos.includes('defender')) positions.add('defender');
+        else if (pos.includes('midfielder')) positions.add('midfielder');
+        else if (pos.includes('forward') || pos.includes('attacker')) positions.add('forward');
+      }
+    });
+    return Array.from(positions);
+  }, [playersData?.players, team?.players]);
 
   // Affichage du loading
   if (loading && !team) {
@@ -307,7 +525,6 @@ export default function TeamDetails() {
                     sx={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', backdropFilter: 'blur(10px)' }}
                   />
                 )}
-                {/* NOUVEAU : Chip de position */}
                 {team.position && (
                   <Chip 
                     label={`#${team.position} au classement`}
@@ -322,7 +539,7 @@ export default function TeamDetails() {
               </Box>
             </Grid>
 
-           <Grid item xs={12} md={3}>
+            <Grid item xs={12} md={3}>
               <Grid container spacing={2}>
                 <Grid item xs={4} md={12}>
                   <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
@@ -369,7 +586,7 @@ export default function TeamDetails() {
             label={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <SportsFootball />
-                Joueurs
+                Joueurs ({(playersData?.players || team?.players || []).length})
                 {playersLoading && (
                   <Box sx={{ ml: 1 }}>
                     <LinearProgress sx={{ width: 20, height: 2 }} />
@@ -470,119 +687,204 @@ export default function TeamDetails() {
           </Typography>
         </TabPanel>
 
-        {/* Onglet Joueurs - VERSION AMÉLIORÉE */}
+        {/* Onglet Joueurs - VERSION COMPLÈTE AVEC FILTRES */}
         <TabPanel value={tabValue} index={2}>
-          <Grid container spacing={4}>
-            <Grid item xs={12} lg={8}>
-              <Card>
-                <CardContent sx={{ p: 4 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                    <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <SportsFootball color="primary" /> 
-                      Effectif ({(playersData?.players || team.players || []).length} joueurs)
-                    </Typography>
-                    {((playersData?.players && playersData.players.length > 0) || (team.players && team.players.length > 0)) && (
-                      <Button variant="outlined" startIcon={<SportsSoccer />}>
-                        Voir statistiques détaillées
-                      </Button>
-                    )}
-                    {playersLoading && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <LinearProgress sx={{ width: 100 }} />
-                        <Typography variant="body2" color="text.secondary">
-                          Chargement des stats...
-                        </Typography>
-                      </Box>
-                    )}
-                  </Box>
-                  
-                  <Divider sx={{ mb: 3 }} />
-                  
-                  {((playersData?.players && playersData.players.length > 0) || (team.players && team.players.length > 0)) ? (
-                    <Box>
-                      {(playersData?.players || team.players || []).slice(0, 10).map((player, index) => (
-                        <PlayerCard
-                          key={player.id}
-                          player={player}
-                          onClick={() => handlePlayerClick(player.id)}
-                        />
-                      ))}
-                      
-                      {(playersData?.players || team.players || []).length > 10 && (
-                        <Box sx={{ textAlign: 'center', mt: 3 }}>
-                          <Button 
-                            variant="outlined" 
-                            size="large"
-                            onClick={() => navigate(`/team/${teamId}/players`)}
-                          >
-                            Voir les {(playersData?.players || team.players || []).length - 10} autres joueurs
-                          </Button>
-                        </Box>
-                      )}
-                    </Box>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 8 }}>
-                      <SportsFootball sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                      <Typography variant="h6" color="text.secondary" gutterBottom>
-                        {playersLoading ? 'Chargement des données des joueurs...' : 'Aucun joueur trouvé'}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {playersLoading 
-                          ? 'Les statistiques des joueurs sont en cours de récupération depuis l\'API.'
-                          : 'Les données des joueurs ne sont pas disponibles pour cette équipe.'
-                        }
-                      </Typography>
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} lg={4}>
-              <Card sx={{ height: 'fit-content' }}>
-                <CardContent sx={{ p: 4 }}>
-                  {/* Top Scoreurs - AVEC VRAIES DONNÉES */}
-                  <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                    <Star color="warning" /> Top Scoreurs
+          {/* Barre de filtres et recherche */}
+          <Paper sx={{ p: 3, mb: 3, bgcolor: 'grey.50' }}>
+            <Grid container spacing={3} alignItems="center">
+              {/* Recherche */}
+              <Grid item xs={12} md={5}>
+                <TextField
+                  fullWidth
+                  placeholder="Rechercher un joueur..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              
+              {/* Filtre par position */}
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel>Position</InputLabel>
+                  <Select
+                    value={positionFilter}
+                    onChange={(e) => {
+                      setPositionFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    label="Position"
+                  >
+                    <MenuItem value="all">Toutes</MenuItem>
+                    {uniquePositions.includes('goalkeeper') && <MenuItem value="goalkeeper">Gardiens</MenuItem>}
+                    {uniquePositions.includes('defender') && <MenuItem value="defender">Défenseurs</MenuItem>}
+                    {uniquePositions.includes('midfielder') && <MenuItem value="midfielder">Milieux</MenuItem>}
+                    {uniquePositions.includes('forward') && <MenuItem value="forward">Attaquants</MenuItem>}
+                  </Select>
+                </FormControl>
+              </Grid>
+              
+              {/* Tri */}
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel>Trier par</InputLabel>
+                  <Select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    label="Trier par"
+                  >
+                    <MenuItem value="appearances">Matchs joués</MenuItem>
+                    <MenuItem value="goals">Buts</MenuItem>
+                    <MenuItem value="assists">Passes</MenuItem>
+                    <MenuItem value="contribution">Buts + Passes</MenuItem>
+                    <MenuItem value="rating">Note moyenne</MenuItem>
+                    <MenuItem value="name">Nom</MenuItem>
+                    <MenuItem value="age">Âge</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              
+              {/* Informations */}
+              <Grid item xs={12} md={1}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>{filteredAndSortedPlayers.length}</strong>
                   </Typography>
-                  <Divider sx={{ mb: 3 }} />
-
-                  {playersData?.players && playersData.players.length > 0 ? (
-                    <List>
-                      {playersData.players
-                        .filter(p => (p.performance?.goals || 0) > 0)  // Seulement ceux qui ont marqué
-                        .sort((a, b) => (b.performance?.goals || 0) - (a.performance?.goals || 0))  // Tri par buts
-                        .slice(0, 5)  // Top 5
-                        .map((player, index) => (
-                          <ListItem key={player.id} sx={{ px: 0, py: 2 }}>
-                            <ListItemAvatar>
-                              <Avatar 
-                                sx={{ 
-                                  bgcolor: index === 0 ? '#FFD700' : 'primary.main',
-                                  width: 40,
-                                  height: 40,
-                                  fontWeight: 'bold'
-                                }}
-                              >
-                                {index + 1}
-                              </Avatar>
-                            </ListItemAvatar>
-                            <ListItemText
-                              primary={<Typography variant="h6">{player.name}</Typography>}
-                              secondary={`${player.performance?.goals || 0} buts • ${player.performance?.assists || 0} passes • ${player.performance?.appearances || 0} matchs`}
-                            />
-                          </ListItem>
-                        ))}
-                    </List>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                      {playersLoading ? 'Chargement des statistiques...' : 'Aucun buteur pour cette saison'}
-                    </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    joueur(s)
+                  </Typography>
+                  {playersLoading && (
+                    <LinearProgress sx={{ mt: 1 }} />
                   )}
-                </CardContent>
-              </Card>
+                </Box>
+              </Grid>
             </Grid>
-          </Grid>
+          </Paper>
+
+          {/* Grille des joueurs - MODE CARTE UNIQUEMENT */}
+          {filteredAndSortedPlayers.length > 0 ? (
+            <Box>
+              {/* Affichage en grille 3x3 */}
+              <Grid container spacing={3} sx={{ mb: 4 }}>
+                {paginatedPlayers.map((player) => (
+                  <Grid item xs={12} sm={6} md={4} key={player.id}>
+                    <EnhancedPlayerCard
+                      player={player}
+                      onClick={() => handlePlayerClick(player.id)}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                  <Pagination
+                    count={totalPages}
+                    page={currentPage}
+                    onChange={handlePageChange}
+                    color="primary"
+                    size="large"
+                    showFirstButton
+                    showLastButton
+                  />
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <SportsFootball sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                {playersLoading 
+                  ? 'Chargement des données des joueurs...' 
+                  : searchTerm || positionFilter !== 'all'
+                    ? 'Aucun joueur ne correspond à vos critères'
+                    : 'Aucun joueur trouvé'
+                }
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {playersLoading 
+                  ? 'Les statistiques des joueurs sont en cours de récupération depuis l\'API.'
+                  : searchTerm || positionFilter !== 'all'
+                    ? 'Essayez de modifier vos filtres de recherche.'
+                    : 'Les données des joueurs ne sont pas disponibles pour cette équipe.'
+                }
+              </Typography>
+              {(searchTerm || positionFilter !== 'all') && (
+                <Button 
+                  variant="outlined" 
+                  onClick={() => {
+                    setSearchTerm('');
+                    setPositionFilter('all');
+                    setCurrentPage(1);
+                  }}
+                  sx={{ mt: 2 }}
+                >
+                  Réinitialiser les filtres
+                </Button>
+              )}
+            </Box>
+          )}
+
+          {/* Statistiques rapides de l'effectif */}
+          {filteredAndSortedPlayers.length > 0 && (
+            <Paper sx={{ mt: 4, p: 3, bgcolor: 'primary.50' }}>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <TrendingUp color="primary" /> Statistiques de l'effectif
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" color="success.main" fontWeight="bold">
+                      {filteredAndSortedPlayers.reduce((sum, p) => sum + (p.performance?.goals || 0), 0)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Total buts
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" color="info.main" fontWeight="bold">
+                      {filteredAndSortedPlayers.reduce((sum, p) => sum + (p.performance?.assists || 0), 0)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Total passes
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" color="primary.main" fontWeight="bold">
+                      {Math.round(filteredAndSortedPlayers.reduce((sum, p) => sum + (p.age || 0), 0) / filteredAndSortedPlayers.length) || 0}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Âge moyen
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" color="warning.main" fontWeight="bold">
+                      {filteredAndSortedPlayers.filter(p => (p.performance?.goals || 0) > 0).length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Buteurs différents
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Paper>
+          )}
         </TabPanel>
 
         {/* Onglet Performance */}
@@ -633,6 +935,23 @@ export default function TeamDetails() {
           </CardContent>
         </Card>
       )}
+
+      {/* Bouton scroll vers le haut */}
+      {showScrollTop && (
+        <Fab
+          color="primary"
+          size="medium"
+          onClick={scrollToTop}
+          sx={{
+            position: 'fixed',
+            bottom: 20,
+            right: 20,
+            zIndex: 1000
+          }}
+        >
+          <KeyboardArrowUp />
+        </Fab>
+      )}
       
       {/* Debug info amélioré */}
       <Box sx={{ mt: 4, textAlign: 'center' }}>
@@ -641,8 +960,9 @@ export default function TeamDetails() {
             ⚽ <strong>Team ID:</strong> {teamId} • 
             <strong>Position:</strong> #{team.position} • 
             <strong>Points:</strong> {team.points} • 
-            <strong>Joueurs chargés:</strong> {team.players?.length || 0} • 
-            <strong>Joueurs détaillés:</strong> {playersData?.players?.length || 0} • 
+            <strong>Joueurs API:</strong> {(playersData?.players || team?.players || []).length} • 
+            <strong>Affichés:</strong> {paginatedPlayers.length} • 
+            <strong>Page:</strong> {currentPage}/{totalPages} • 
             <strong>Status:</strong> {playersLoading ? '🔄 Chargement...' : '✅ Terminé'} • 
             Dernière mise à jour : {new Date().toLocaleString()}
           </Typography>

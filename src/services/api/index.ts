@@ -7,6 +7,7 @@
 export { teamsService } from './teamsService';
 export { matchesService } from './matchesService';
 export { standingsService } from './standingsService';
+export { playersService } from './playersService';
 
 // Types principaux
 export type { MatchData } from './matchesService';
